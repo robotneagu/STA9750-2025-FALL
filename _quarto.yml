@@ -12,7 +12,7 @@ website:
     search: false
     left:
       - text: "Resume"
-        href: ./RobertNeagu_Resume.pdf
+        href: https://robotneagu.pythonanywhere.com/resume
     
 format:
   html:
