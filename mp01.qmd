@@ -9,7 +9,7 @@ format:
 ---
 
 <center>
-  <img src ="../images/1_NetflixLogo.png" width = "200">
+  <img src ="./images/1_NetflixLogo.png" width = "200">
 </center>
 
 ## Background
@@ -384,7 +384,7 @@ It is possible more shows would have success in more countries if streaming bans
 \
 
 <center>
-  <img src ="../images/1_StrangerThings.jpg" width = "550">
+  <img src ="./images/1_StrangerThings.jpg" width = "550">
 </center>
 
 \
