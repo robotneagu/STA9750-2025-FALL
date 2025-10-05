@@ -6,7 +6,7 @@ format: html
 
 ## Mini-Project 01: Exploring the Most Popular Programming on Netflix
 Analyzed Netflix's Top 10 to determine why such shows became popular. <br>
-A press release section is also included, using evidence to promote specific shows based on certain variables. [Link to project](./projects/mini01.html)
+A press release section is also included, using evidence to promote specific shows based on certain variables. [Link to project](./projects/mp01.html)
 
 ## Mini-Project 02: TBD
 TBD
