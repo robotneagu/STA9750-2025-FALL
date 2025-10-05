@@ -1,0 +1,26 @@
+---
+title: "Projects"
+format: html
+---
+\
+
+## Mini-Project 01: Exploring the Most Popular Programming on Netflix
+Analyzed Netflix's Top 10 to determine why such shows became popular. <br>
+A press release section is also included, using evidence to promote specific shows based on certain variables. [Link to project](./projects/mini01.qmd)
+
+## Mini-Project 02: TBD
+TBD
+
+## Mini-Project 03: TBD
+TBD
+
+## Mini-Project 04: TBD
+TBD
+
+## Final Project
+TBD
+```{r}
+#| include: false
+1+1
+```
+Last Updated: `r format(Sys.time(), "%A %m-%d, %Y at %H:%M%p")`

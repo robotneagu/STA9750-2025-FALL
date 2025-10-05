@@ -1,0 +1,610 @@
+---
+title: "<center>Mini-Project 01</center>"
+subtitle: "<center>Exploring the Most Popular Programming on Netflix</center>"
+format: 
+  html:
+    code-fold: true
+    code-summary: "Show the code"
+    toc: true
+---
+
+<center>
+  <img src ="../images/1_NetflixLogo.png" width = "200">
+</center>
+
+## Background
+Most people have likely heard of Netflix and probably subscribed to it too. By searching online for most successful streaming services, Netflix is an option that will appear numerous times. With such success came numerous series or movies, some now exclusive, that captured the attention of people all around the world. This data analysis will look into what made such offerings, how long they have been successful, and whether they are viewed the same across different countries.
+
+\
+
+## Obtaining the Data
+The following code extracts [Netflix’s TuDum Top 10](https://www.netflix.com/tudum/top10) data files to be analyzed. Two files are given, representing:
+
+- Global Top 10
+- Country-wide Top 10
+\
+```{r}
+#| output: false
+
+if(!dir.exists(file.path("data", "mp01"))){
+    dir.create(file.path("data", "mp01"), showWarnings=FALSE, recursive=TRUE)
+}
+
+GLOBAL_TOP_10_FILENAME <- file.path("data", "mp01", "global_top10_alltime.csv")
+
+if(!file.exists(GLOBAL_TOP_10_FILENAME)){
+    download.file("https://www.netflix.com/tudum/top10/data/all-weeks-global.tsv", 
+                  destfile=GLOBAL_TOP_10_FILENAME)
+}
+
+COUNTRY_TOP_10_FILENAME <- file.path("data", "mp01", "country_top10_alltime.csv")
+
+if(!file.exists(COUNTRY_TOP_10_FILENAME)){
+    download.file("https://www.netflix.com/tudum/top10/data/all-weeks-countries.tsv", 
+                  destfile=COUNTRY_TOP_10_FILENAME)
+}
+```
+\
+Before analysis can begin, cleaning the data is mandatory. Doing so allows more accurate results while preventing errors for unknown values.
+```{r}
+#| output: false
+
+#Install necessary packages
+if(!require("tidyverse")) install.packages("tidyverse")
+library(readr)
+library(dplyr)
+
+#Assign global file to a variable
+GLOBAL_TOP_10 <- read_tsv(GLOBAL_TOP_10_FILENAME)
+
+#Fixing the 'N/A' value to be NA
+###Task 2
+GLOBAL_TOP_10 <- GLOBAL_TOP_10 |>
+    mutate(season_title = if_else(GLOBAL_TOP_10$season_title == "N/A", NA, season_title))
+
+###Task 3
+#Fixing "N/A" with read_tsv
+COUNTRY_TOP_10 <- read_tsv(COUNTRY_TOP_10_FILENAME, na=c("N/A"))
+```
+\
+When taking a peak at the data sets, the following assumptions can be made for the global top 10 data set:
+
+- The sample size is 8,840
+- Over 4 years of data is provided, starting from 07/04/2021 until 09/21/2025
+- The most watched show, Squid Game, had over 571 million hours viewed in one week.
+\
+```{r}
+#| output: false
+summary(GLOBAL_TOP_10)
+#Finding the most viewed show
+GLOBAL_TOP_10[order(GLOBAL_TOP_10$weekly_hours_viewed, decreasing = TRUE),]
+```
+Similarly, the following assumptions can be made for the country top 10 data set:
+
+- The sample size is 411,760
+- The same time span as the global data set are used, being from 07/04/2021 until 09/21/2025.
+- Being a film or TV show seems to correlate with the season_title having NA values. This makes sense as logically, a film is not considered as series.
+- 94 countries were used in the data.
+```{r}
+#| output: false
+summary(COUNTRY_TOP_10)
+#Finding how many unique countries are included
+length(unique(COUNTRY_TOP_10$country_name))
+```
+\
+
+## Initial Data Exploration
+
+Data exploration cannot begin until data has been formatted in a way where analysis can be computed by the computer software and user. The table below provides a snapshot of this, mainly with the column names being capitalized words and runtime converted to minutes.
+
+```{r}
+#| echo: True
+#Replacing underscores with spaces and capitalize the column names.
+library(DT)
+library(stringr)
+format_titles <- function(df){
+    colnames(df) <- str_replace_all(colnames(df), "_", " ") |> str_to_title()
+    df
+}
+
+##Credit: Professor Michael Weylandt
+#Fixing the low contrast table while removing season title and runtime. 
+#Runtime will be represented in minutes.
+GLOBAL_TOP_10 |> 
+    mutate(`runtime_(minutes)` = round(60 * runtime)) |>
+    select(-season_title, 
+           -runtime) |>
+    format_titles() |>
+    head(n=20) |>
+    datatable(style= "bootstrap5", 
+              options=list(searching=FALSE, 
+                           info=FALSE, 
+              initComplete = JS(
+        'function() {$("html").attr("data-bs-theme", "light");}' 
+        #Using light instead of dark does not break the website theme for cyborg.
+             ))) |>
+    formatRound(c('Weekly Hours Viewed', 'Weekly Views'))
+```
+\
+
+Using the formatted table for the top 10 global viewership, exploratory data analysis can now be performed. The statements below highlight some interesting aspects of Netflix's top 10 shows over the years. Code for each statement is also provided.
+
+### Unique Countries
+
+```{r}
+###Q4-1
+#| echo: True
+#Take all country names and finds how long the output is
+u_countries <- length(unique(COUNTRY_TOP_10$country_name))
+#Create table to view all entries
+COUNTRY_TOP_10 |>
+  distinct(country_name) |>
+  group_by(country_name) |>
+  format_titles() |>
+  head(n=100) |>
+  datatable(style= "bootstrap5")
+```
+
+\
+
+There are **`{r} u_countries` unique countries** based on the given data set. Looking at the data table and thinking logically suggests Netflix operates worldwide with major success. It could be implied that top 10 shows are subjective when comparing one country to another likely due to cultural practices and different interests.
+
+\
+
+### Most Successful Non-English Film
+
+```{r}
+#Q4-2
+#Each iteration looks only at non-English films in descending order to easily extract values.
+non_english_top_title <- GLOBAL_TOP_10 |>
+                          filter(category == "Films (Non-English)") |>
+                          arrange(desc(cumulative_weeks_in_top_10)) |>
+                          distinct(show_title) |>
+                          pull() |>
+                          first()
+
+
+non_english_top_weeks <- GLOBAL_TOP_10 |>
+                          filter(category == "Films (Non-English)")|>
+                          arrange(desc(cumulative_weeks_in_top_10)) |>
+                          distinct(show_title, .keep_all = TRUE) |>
+                          pull(cumulative_weeks_in_top_10) |>
+                          first()
+                          
+GLOBAL_TOP_10 |>
+  filter(category == "Films (Non-English)") |>
+  arrange(desc(cumulative_weeks_in_top_10)) |>
+  distinct(show_title, .keep_all=TRUE) |>
+  head(n=20) |>
+  format_titles() |>
+  datatable(style= "bootstrap5")
+```
+
+\
+
+Looking at which non-English *film* on Netflix had the most cumulative weeks in the top ten, **`{r} non_english_top_title`**, is that film with **`{r} non_english_top_weeks`** consecutive weeks. This could further reveal movies are popularized by region and specific interests in a concentrated area.
+
+\
+
+### Longest Film
+```{r}
+###Q4-3
+longest_film_title <- GLOBAL_TOP_10 |>
+                        filter(category == "Films (English)" | category == "Films (Non-English)") |>
+                        arrange(desc(runtime)) |>
+                        head(1) |>
+                        pull(show_title)
+
+longest_film_minutes <- GLOBAL_TOP_10 |>
+                        filter(category == "Films (English)" | category == "Films (Non-English)") |>
+                        arrange(desc(runtime)) |>
+                        head(1) |>
+                        mutate(runtime_minutes = round(60 * runtime)) |>
+                        pull(runtime_minutes)
+```
+For the longest Top 10 *film* Netflix offers, the data set indicates **`{r} longest_film_title`** is that film, running at about **`{r} longest_film_minutes` minutes**. The film length can be used as a benchmark for future measures, determining whether there is any correlation with film length and the success of that film.
+
+### Programs with Largest Viewership
+```{r}
+###Q4-4
+#| echo = TRUE
+all_most_hours <- GLOBAL_TOP_10 |>
+                    group_by(category, show_title) |>
+                    summarise(total_hours = sum(weekly_hours_viewed), .groups = "drop") |>
+                    group_by(category) |>
+                    slice_max(total_hours, n=1) |>
+                    arrange(desc(total_hours)) |>
+                    mutate(total_hours = formatC(total_hours, format="f", digits = 0, big.mark = ",")) |>
+                    rename("Total Hours" = total_hours) |>
+                    format_titles()
+                    
+#Redeclare variable to output the data table
+all_most_hours |>
+  datatable(style= "bootstrap5")
+```
+*The table above is referenced with the answer below*
+\
+
+At a first glance at this table, it may be surprising to see that a `{r} all_most_hours[1,1]` series *came on top*, especially with such a large distance compared to the next entry. This may be an example of a series having greater ability to capture attention and it is much easier to have captions than re-voice at a different language for non-English programs (or categories).
+\
+
+It is also interesting to see how a series can capture much more *attention* compared to a film. Reasons may be the amount of *times the user watches the program*; they would want to watch the next episode of `{r} all_most_hours[1,2]` every week compared to watching `{r} all_most_hours[3,2]` just a few times at most. \
+
+Another aspect to note is English programs get more attention as films but not as much as a series. This is likely subject to fluctuate as a new English program can be better or worse off than past programs.\
+
+### Longest TV Show by Country
+
+```{r}
+###Q4-5
+#Which TV show had the longest run in a country’s Top 10? How long was this run and in what country did it occur?
+longest_run_country <- COUNTRY_TOP_10 |>
+                        filter(category == 'TV') |>
+                        group_by(country_name, show_title) |>
+                        summarise(most_tv_weeks = max(cumulative_weeks_in_top_10), .groups = "drop") |>
+                        arrange(desc(most_tv_weeks)) |>
+                        slice(1:10) |>
+                        arrange(desc(most_tv_weeks))
+
+#Create data table
+longest_run_country |>
+                        format_titles() |>
+                        datatable(style = "bootstrap5")
+```
+\
+
+The TV show **`{r} longest_run_country[1,2]`** had the longest run, being **`{r} longest_run_country[1,3]`** weeks in the country **`{r} longest_run_country[1,1]`**. Being run for over 2 years is clear evidence Money Heist is considered a success in Pakistan. Doing more research indicates this TV series was developed mainly in *Spain*, raising questions on what made it successful specifically in Pakistan. \
+
+Another noteworthy finding is seeing the TV show *Pablo Escobar, el patrón del mal* appear numerous times after Money Heist with at least 100 top 10 weeks. When looking at the associated country reveals the TV show was very popular in South America as most countries are within this region and primarily speak Spanish. This could reveal shared interests between the countries or TV business within that region has monopolized marketing. \
+
+### Not Enough Data?
+
+```{r}
+###Q4-6
+#Count weeks associated with each country and its start and end date
+country_least <-COUNTRY_TOP_10 |>
+                  group_by(country_name) |>
+                  summarise(week_count = n_distinct(week),
+                            first_week = min(week),
+                            last_week = max(week),
+                            .groups = "drop") |>
+                  #Filter results where we see countries with less than 200 weeks
+                  filter(week_count < 200) |>
+                  arrange(week_count) |>
+                  slice(1:10)
+```
+\
+
+Appearing on the unique country list does not indicate whether a country worked with Netflix all the time with the given data. As it turns out, **`{r} country_least[1,1]`** ceased operations with Netflix on **`{r} country_least[1,4]`**. This is likely due to political tensions, where companies reacted by stopping services with Russia.\
+
+### Squid Game Total Viewership
+
+```{r}
+###Q4-7
+squidgame_total_views <- GLOBAL_TOP_10 |>
+                          #Find only Squid Game seasons
+                          filter(str_detect(show_title, "Squid Game")) |>
+                          summarise(sum(weekly_hours_viewed)) |>
+                          #Extract calculated value
+                          pull()
+```
+\
+The series Squid Game has a total viewership of `{r} squidgame_total_views` hours, or over 5 billion hours! This is likely attributed to its wide popularity worldwide with billions of views too. \
+
+### Red Notice Views in 2021
+
+The *film* Red Notice has no runtime data and is very limited in our data set as shown below.
+
+```{r}
+GLOBAL_TOP_10 |>
+    filter(str_detect(show_title, "Red Notice")) |>
+    datatable(style = "bootstrap5")
+```
+\
+
+There are many workarounds that can be used to calculate the desired value. In this project's case of simplicity, the total amount of viewing hours is already known to be 1.966667, or 1 hour and 58 minutes. The answer will be calculated by dividing *total viewing hours* in 2021 by the *runtime* of Red Notice.
+
+```{r}
+###Q4-8
+
+#Convert into hours as an integer
+red_notice_runtime <- 1 + (58 / 60)
+
+#Find total views in 2021
+total_weekly_views_2021 <- GLOBAL_TOP_10 |>
+                            filter(year(week) == 2021, show_title == "Red Notice") |>
+                            summarise(total_hours = sum(weekly_hours_viewed)) |>
+                            #Find total view count in 2021 of Red Notice
+                            mutate(total_views = round(total_hours / red_notice_runtime, 0))
+total_weekly_views_2021
+```
+\
+
+The code reveals that there were *`{r} total_weekly_views_2021[1,2]`* views, or slightly over **200 million views** of Red Notice in 2021 based on the methodology used. The number is somewhat accurate based on [Variety](https://variety.com/2025/film/news/kpop-demon-hunters-netflix-most-watched-movie-history-1236496106/), but also shows Red Notice was the most viewed film on Netflix until KPop Demon Hunters dethroned it in 2025. Therefore, this result is acceptable but could be more accurate with different methods.\
+
+### Rising Films in the US
+
+```{r}
+###Q4-9
+
+us_films <- COUNTRY_TOP_10 |>
+              filter(country_name == "United States", category == "Films") |>
+              arrange(desc(week))
+
+most_recent_tops <- us_films |>
+                      group_by(show_title) |>
+                      reframe(debut_week = min(week),
+                                debut_rank = weekly_rank[which.min(week)],
+                                topped = weekly_rank[which(weekly_rank == 1)],
+                                topped_first_week = week[which.max(cumulative_weeks_in_top_10)]) |>
+                      filter(debut_rank != topped) |>
+                      distinct(show_title, .keep_all = TRUE) |>
+                      arrange(desc(debut_week))
+#Datatable
+most_recent_tops |>
+  datatable(style = "bootstrap5")
+
+```
+\
+
+Based on this data set, **`{r} most_recent_tops[1, 1]`** became the most recent film to not top initially. The data table shows the Film debuted in the end of August 2025 with a rank of top **`{r} most_recent_tops [1, 3]`**. However, the data table shows this film managed to be on the top in the near end of September 2025.\
+
+### Finding the TV Show/Season that Hit Top 10 Everywhere
+```{r}
+top_ten_countries <- COUNTRY_TOP_10 |>
+                      filter(category == "TV") |>
+                      group_by(show_title, country_name) |>
+                      summarise(debut_week = min(week),
+                                debut_rank = weekly_rank[which.min(week)],
+                                .groups = "drop") |>
+                      group_by(show_title) |>
+                      summarise(country_count = n_distinct(country_name), .groups = "drop") |>
+                      slice_max(country_count) |> #Largest country count means its everywhere
+                      arrange(desc(country_count))
+
+top_ten_countries |>
+  datatable(style = 'bootstrap5')
+```
+\
+
+The data table shows that there are **`{r} top_ten_countries[1, 2]`** countries that had a TV show/season hitting in the most countries in its debut week. Specifically these were:
+- All of Us Are Dead
+- Emily in Paris
+- Inventing Anna
+- Sex Education
+- Squid Game
+- The Witcher
+- You
+
+It is possible more shows would have success in more countries if streaming bans in certain countries such as Russia's departure have not occurred for Netflix. \
+
+\
+
+# Stranger Things Final Season Expected To Break Charts
+
+\
+
+<center>
+  <img src ="../images/1_StrangerThings.jpg" width = "550">
+</center>
+
+\
+
+\
+
+After nearly a decade, Stranger Things comes back with its last season for one last hurrah on Netflix. The series was very popular since its initial release and continues to be on Netflix's top 10 programs even as of writing this. Many factors stand out for why, starting with total watch time reaching nearly **3 billion** views. Stranger Things has become the most watched English series globally, only behind Squid Game as an non-English series at over *5 billion* views.\
+
+Despite this large gap, it is definitely possible Stranger Things can become close or even exceed Squid Game to regain the throne. Comparing Stranger Things to Netflix's other successes reveals *Wednesday* is just behind Stranger Things at about *2.8 billion* views despite having a debut in 2022. Alongside a growing population, shows on Netflix can explode in popularity, especially when the series reaches the point of becoming a franchise. While it may not reach the views of Squid Game, it certainly can become close to its total hours viwed.
+
+```{r}
+#Total viewership & compared to other titles
+
+strange_most_hours <- GLOBAL_TOP_10 |>
+                        group_by(show_title, category) |>
+                        summarise(total_hours = sum(weekly_hours_viewed), .groups = "drop") |>
+                        slice_max(total_hours, n=5) |>
+                        arrange(desc(total_hours)) |>
+                        mutate(total_hours = formatC(total_hours, format="f", digits = 0, big.mark = ",")) |>
+                        rename("Total Hours" = total_hours) |>
+                        mutate("Show Category" = category) |>
+                        format_titles()
+strange_most_hours |>
+  datatable(style = "bootstrap5")
+```
+\
+
+As Stranger Things went on, so did its total viewership hours each season. The show became more and more popular worldwide, achieving about **1.9 billion** views with season 4 alone. Even the viewership of seasons 1 through 3 combined do not match that of season 4 alone. Season 4 managed to stay on top charts combined for over two years, having **133** top 10 appearances on Netflix. All these facts, alongside what was previously mentioned, bring hope to take the crown as the most viewed series in the world.
+
+\
+
+```{r}
+#Length of popularity
+
+strange_len_popularity <- GLOBAL_TOP_10 |>
+                            group_by(show_title, season_title, cumulative_weeks_in_top_10) |>
+                            filter(str_detect(show_title, "Stranger Things")) |>
+                            mutate(season_title = replace_na(season_title, "Stranger Things 1"))|>
+                            group_by(season_title) |>
+                            arrange(desc(season_title)) |>
+                            summarise("Duration On Top 10 (In Weeks)" = (first(week) - last(week)), .groups = "drop",
+                                      "Total Viewership Hours" = sum(weekly_hours_viewed)) |>
+                                       mutate(`Total Viewership Hours` = formatC(`Total Viewership Hours`, format="f", digits = 0, big.mark = ",")) |>
+                            arrange(desc(season_title)) |>
+                            format_titles()
+strange_len_popularity |>
+  datatable(style = "bootstrap5")
+```
+
+\
+
+Looking at the table below shows how many times a season made it to the top 10 on Netflix for each country. A brief look at the table shows that some countries were heavily invested in Stranger Things from the start while others eventually caught on with the show. For example, the 9th page of the table reveals *English speaking* countries like the United States and United Kingdom were invested into the series since its debut. Yet there are countries like Sweden who were somewhat interested in seasons 1-3, but now have *more* top 10s of Stranger Things compared to both the United States and United Kingdom. Areas of *dense population* like China and India also demonstrated this pattern, having double digits for top 10s with season 4 only.
+\
+
+\
+
+The ending for Stranger Things seems bright, solidifying itself as a franchise that managed to gain strong attention of the world. Trends analyzed reveal there is a chance for even more success to overtake Squid Game as the most viewed series with season 5.
+```{r}
+#Multinational appeal (showcase total weeks in top 10)
+multi_appeal <-  COUNTRY_TOP_10 |>
+                filter(str_detect(show_title, "Stranger Things")) |>
+                mutate(season_title = replace_na(season_title, "Stranger Things 1"))|>
+                group_by(country_name) |>
+                summarise("Season 4 Total" = sum((season_title == 'Stranger Things 4')),
+                          "Season 3 Total" = sum((season_title == 'Stranger Things 3')),
+                          "Season 2 Total" = sum((season_title == 'Stranger Things 2')),
+                          "Season 1 Total" = sum((season_title == 'Stranger Things 1')),
+                          .groups = "drop") |>
+                          format_titles()
+multi_appeal |>
+  datatable(style = "bootstrap5")
+    
+```
+
+# Exploring India's Growing Success in Netflix
+*Note: This strongly assumes all Hindi-language films are from India. This is not true and does not fully represent accurate data*
+\
+
+```{r}
+#Recent success in India
+#A delimiter of 10 to filter which programs are popular in India
+india_tv <- COUNTRY_TOP_10 |>
+                filter(country_name == 'India',category == "TV") |>
+                group_by(show_title) |>
+                summarise(cumulative_weeks_in_top_10 = max(cumulative_weeks_in_top_10),
+                          week = max(week), .groups = "drop") |>
+                subset(cumulative_weeks_in_top_10 > 10) |>
+                arrange(desc(cumulative_weeks_in_top_10)) |>
+                format_titles()
+india_tv |>
+  datatable(style = "bootstrap5")
+```
+\
+
+Despite being located miles away of Netflix's main headquarters, India has been a rising country in producing quality content. Yet the country loves content produced in *English* as shown in the chart *above*. For instance, the series **`{r} india_tv[1,1]`** had a very large run of being in the top 10, that being **`{r} india_tv[1,2]` weeks**. India has managed to create a variety of TV shows that made it to the top 10 numerous times. \
+
+The data table *below* shows the most successful films in India that made it to the top 10. **RRR** is a standout film as it has the most top 10s in India with **25 tops** and is the only Hindi film on this list. A possible trend seen here is how the week column has films with many tops in recent years; there is a chance that more movies will continue to be made and seen on the top charts.
+
+```{r}
+#Finding most successful films in India
+india_film <- COUNTRY_TOP_10 |>
+                filter(country_name == 'India', category == "Films") |>
+                group_by(show_title) |>
+                summarise(cumulative_weeks_in_top_10 = max(cumulative_weeks_in_top_10),
+                          week = max(week), .groups = "drop") |>
+                subset(cumulative_weeks_in_top_10 > 10) |>
+                arrange(desc(cumulative_weeks_in_top_10))
+india_film |>
+  datatable(style = "bootstrap5")
+```
+\
+
+The table below shows which TV shows are popular in both the United States and India. The series **Wednesday** is a clear winner with **7 tops** as of writing and continues to receive new season(s) for even more watching. Yet this also shows interests between these two countries differ greatly.\
+
+```{r}
+#| warning: false
+#Finding which popular Indian programs did chart the US
+us_tv_similar <- COUNTRY_TOP_10 |>
+                    filter(country_name == "United States", category == "TV") |>
+                    filter(show_title == india_tv$`Show Title`) |>
+                    group_by(show_title) |>
+                    subset(show_title == show_title, season_title != is.na(season_title)) |>
+                    summarise("Weeks in Top 10" = cumulative_weeks_in_top_10,
+                              "Week" = week) |>
+                    arrange(desc(`Week`)) |>
+                    format_titles()
+us_tv_similar |>
+  datatable(style = "bootstrap5")
+```
+\
+
+Now looking at any overlapping films shows only 1 result: **KPop Demon Hunters**. This is likely due to being the most watched English film on Netflix, slowing driving attention to watch this particular film and it was released not too long ago.\
+```{r}
+#| warning: false
+#Find any overlaps with Indian and United States watched content
+us_film_similar <- COUNTRY_TOP_10 |>
+                      filter(country_name == "United States", category == "Films") |>
+                      filter(show_title == india_film$show_title) |>
+                      group_by(show_title) |>
+                      subset(show_title == show_title, season_title != is.na(season_title)) |>
+                      summarise("Weeks in Top 10" = cumulative_weeks_in_top_10,
+                                "Week" = week) |>
+                      arrange(desc(`Week`)) |>
+                      format_titles()
+
+us_film_similar |>
+  datatable(style = "bootstrap5")
+#Results yeild < 5 overlap, weak correlation
+```
+\
+
+Looking at the success of Hindi films and TV shows globally has **RRR** show again with **18 tops**. It shows how RRR was a one of a kind movie as all other Hindi programs only received 3 or less tops. *Kalki 2898 AD (Hindi)* was able to become number 2 on tops with 3 total, but could not make more progress after 2024. \
+
+Hindi programs continue to find unique elements that make it stand out, possibly topping RRR with a new production. With an estimated viewer count near **20 million** in India alone, Netflix and production teams have a large audience to appeal to and receive feedback from for future productions to be successful.
+\
+
+```{r}
+#Find the most popular Hindi movies globally
+hindi_success <- GLOBAL_TOP_10 |>
+                  filter(str_detect(show_title, 'Hindi'))|>
+                    group_by(show_title) |>
+                    summarise("Top 10 Appearance Count" = max(cumulative_weeks_in_top_10),
+                              "Last Occurance" = last(week)) |>
+                  arrange(desc(`Top 10 Appearance Count`))
+hindi_success |>
+  datatable(style = "bootstrap5")
+```
+Code on how estimated viewership was found
+```{r}
+#| output: false
+#Find size of viewers in India
+hindi_viewer_total <- GLOBAL_TOP_10 |>
+                        filter(str_detect(show_title, 'Hindi')) |>
+                        summarize(sum(weekly_views, na.rm = TRUE)) |>
+                        pull()
+hindi_viewer_total
+```
+\
+
+# The Well Known Yellow Minion is Getting a New Series on Netflix
+\
+
+It is quite peculiar how **Despicable Me** managed to become one of the most popular franchises globally. Even after a decade of their debut, the franchise stays on the top charts of Netflix, with **Despicable Me 2** being the most recent to be on the top 10. At the same time, each film released managed to obtain millions of views, the highest being **Minions**. At the same time, it shows that sequals to this franchise are somewhat risky as **Minions: The Rise of Gru** did not obtain not even *half the views* of Minions. A movie will not suffice to be successful in gaining views. This is where starting a series may bring in more views while staying on the top 10.\
+
+```{r}
+#Obtain total Cumulative_weeks_in_top_10, Date as Week, Weekly Views Total
+gru_total <- GLOBAL_TOP_10 |>
+               filter(str_detect(show_title, "Despicable Me") | str_detect(show_title, "Minions")) |>
+               arrange(desc(week)) |>
+               group_by(show_title) |>
+               reframe("Last Week Top 10" = first(week),
+                         "Total Top 10s" = cumulative_weeks_in_top_10,
+                         "Total Views" = sum(weekly_views, na.rm = TRUE)) |>
+               distinct(show_title, .keep_all = TRUE) |>
+               arrange(desc(`Last Week Top 10`)) |>
+               mutate(`Total Views` = formatC(`Total Views`, format="f", digits = 0, big.mark = ",")) |>
+               format_titles()
+gru_total |>
+  datatable(style = "bootstrap5")
+```
+Netflix has proved that a series can go a long way. The table below shows how the series **Pablo Escobar, el patrón del mal** managed to be on the top 10 for over 2 years in many regions within South America. Given the popularity of Despicable Me, success has a much greater chance of staying on the top 10 while gathering many views. The series should avoid structures like *Stranger Things* and *Wednesday* where the series desaturates very quickly. Instead, Netflix should orient on a family oriented structure where the target audience is much wider and has replayability. Expect a success for the Minions' upcoming series and get some laughs while you watch it.
+
+```{r}
+#Which TV show had the longest run in a country’s Top 10? How long was this run and in what country did it occur?
+longest_run_country <- COUNTRY_TOP_10 |>
+                        filter(category == 'TV') |>
+                        group_by(country_name, show_title) |>
+                        summarise(most_tv_weeks = max(cumulative_weeks_in_top_10), .groups = "drop") |>
+                        arrange(desc(most_tv_weeks)) |>
+                        slice(1:10) |>
+                        arrange(desc(most_tv_weeks))
+
+#Create data table
+longest_run_country |>
+                        format_titles() |>
+                        datatable(style = "bootstrap5")
+```
+
+```{r}
+#| include: false
+2 * 2
+```
+Last Updated: `r format(Sys.time(), "%A %m-%d, %Y at %H:%M%p")`
