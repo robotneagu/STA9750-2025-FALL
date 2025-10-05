@@ -11,6 +11,8 @@ website:
     background: secondary
     search: false
     left:
+      - text: "Projects"
+        href: https://robotneagu.github.io/STA9750-2025-FALL/Projects
       - text: "Resume"
         href: https://robotneagu.pythonanywhere.com/resume
     
