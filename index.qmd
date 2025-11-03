@@ -1,5 +1,8 @@
 ---
 title: "About Me"
+website:
+  navbar:
+    background: secondary
 ---
 <br>
 
