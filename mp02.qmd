@@ -1010,17 +1010,43 @@ The graph represents the CBSAs that are most likely to be a YIMBY city. The prin
 # Visualization 2: Early Rent Burden vs. Population Growth
 rent_v_pop <- ggplot(cbsa_metrics, aes(x = population_growth, y = early_rent_burden, size = -rent_burden_change)) +
   geom_point(alpha = 0.7) +
-  labs(title = "Early Rent Burden vs. Population Growth",
-       x = "Population Growth (in thousands)", y = "Rent Burden (Standardized Index)",
+  labs(title = "Rent Burden vs. Population Growth",
+       x = "Population Growth (Standardized Index)", y = "Rent Burden (Standardized Index)",
        size = "Decrease in Rent Burden") +
   theme_minimal()
 rent_v_pop
 ```
 :::{.callout-note}
 ## Analysis
-The graph showcases all CBSAs and how they affect Population Growth and the Rent Burden. A majority of population growth is on the low end given the left cluster and most CBSAs are within a decrease in rent burden based on their radius. Clusters also exist in the 3 and 10 "groups" where early rent burden is not heavily impacted by population growth.
+The graph showcases all CBSAs and how they affect Population Growth and the Rent Burden. A majority of population growth is on the low end given the left cluster and most CBSAs are within a decrease in rent burden based on their radius. Clusters also exist in the 3 and 10 "categories" where early rent burden is not heavily impacted by population growth.
 :::
 
 # Policy Brief
+
+## Executive Summary: A YIMBY Movement 
+
+### What Is At Stake
+When you walk back home from work, do you ever appreciate the fact you have a roof above your head? Many people do not, and there is a housing crisis the country is dealing with at the moment. Slowly, people are unable to keep up with rent prices, dragging them to the streets. Is this what the American Dream was meant to be, living outside in the cold? Fortunately, the YIMBY organization has conducted analysis throughout the country and has found places best to start building houses.
+
+### Congressional Sponsor Suggestions
+**Primary Sponsor: Huntsville, TX Micro Area**. The first thought that might cross your mind is that Texas is the largest state in the U.S. and is automatically considered the best target. While that is true, there are many other factors to consider like factories and highways that occupy a majority of space.
+Huntsville has been willing to plan more housing given its need to modernize while having rapid population growth and housing demand. YIMBY movements are occurring in Texas as a whole like in Austin and Huntsville is capable of having an accepted rent burden, both go hand in hand.\
+\
+**Co-Sponsor: Urban Honolulu, HI Metro Area**. Creating a YIMBY movement in Hawaii sounds crazy at first given it is best known for its small islands and volcanoes. But what if I told you they have the most consistent rent burden since 2014? The area is extremely [dense](https://censusreporter.org/profiles/31000US46520-urban-honolulu-hi-metro-area/) and people want more houses, yet with a housing shortage, a YIMBY movement seems more compelling. And note that Hawaii has very [strict zoning policies](https://www.civilbeat.org/2023/01/eric-stinton-hawaiis-zoning-laws-are-a-self-inflicted-wound-its-hurting-our-housing/) where urbanization is discouraged despite having over 1 million residents.
+
+### Labor and Industry Benefits
+**Residential Construction (NAICS 236-238)**. Given the small size of Huntsville compared to the rest of Texas, residential construction companies would greatly benefit if they are hired to build new homes and refine older ones. Huntsville may even have the chance to expand its geographic footprint, allowing the possibility to become more well known while providing enough housing for people.
+
+**Real Estate (NAICS 53)**. Real estate is likely to become more flexible, decreasing the power of zoning in Hawaii and bringing more interest for people to support a YIMBY movement. These companies can flourish and potentially bring additional jobs as well. In addition, selling home-based assets should become easier while having competition to stabilize these companies.
+
+### What Metrics Were Used
+
+**Rent Burden Index (0-100)**: Tracks the average rent burden as part of income over time. A score of 50 was the baseline used from year 2014. Any value above indicates there is increased rent burden on residents; values above 75 are considered serious. 
+
+**Population Growth (0-100)**: Shows how quickly the population is growing compared to household permits. Values from 0-15 indicate a strong balance, but values out of that range indicate population is growing too quickly or the rent burden is too high.
+
+### Conclusion
+Through support a movement that wants to build more houses, these towns can show the first steps at what are the benefits. Residents will have the opportunity to have a place to live, expand their town, and have the option to join the movement via jobs too. By seeing what is capable of the YIMBY movement, other towns may be inspired to follow, bringing balance across the country eventually. Whichever decision is made, know that services are needed for towns nationally.
+
 
 Last Updated: `r format(Sys.time(), "%A %m-%d, %Y at %H:%M%p")`
