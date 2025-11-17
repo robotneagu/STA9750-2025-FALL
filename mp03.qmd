@@ -14,6 +14,10 @@ execute:
   message: false
 ---
 
+<center>
+  <img src = "./images/3_Header.jpg">
+</center>
+
 # 📚Introduction
 Many New Yorkers do not appreciate the trees that benefit them and their environment on a daily basis. Over **1 million trees** (specifically 1,093,439 trees) are spread across the Big Apple yet only litter is scattered through most of them. Such people do not consider that these trees are essential for reducing CO2 exposure, provide shelter for birds and squirrels, and provide shade while giving the tree sunlight to grow.
 
@@ -245,7 +249,7 @@ ggplotly(tree_plot)
 ```
 
 :::{.callout-note title = "Notes on the Visualization"}
-*Note: The graph only contains the first 30000 trees due to hardware limitations. The statements below only reflect this visualization and could change afterwards.*
+*Note: The graph contains the first 30000 as points trees due to hardware limitations. The statements below only reflect this visualization and could change afterwards.*
 
 Within the 5 boroughs, **Staten Island** has the greatest density of trees yet most of these trees have an unknown or dead status. The Bronx has a large quantity of trees rated in excellent condition likely due to being far away from the JFK airport and being a starting point outside the metropolitan area. Manhattan also has many trees above the first bottom district, either representing an act was made to plant more trees or is simply used as decoration to attract tourists. This is an interactive graph, explore other areas to find different results!
 :::
@@ -327,18 +331,117 @@ density_trees <- all_data |>
     tree_density = tree_count / area_sqkm
   ) |>
   arrange(desc(tree_density)) |>
-  select(CounDist, Borough, tree_count, Shape_Area, area_sqkm, tree_density)
+  drop_na() |>
+  select(CounDist, Borough, tree_count, area_sqkm, tree_density)
   
 
 density_trees |>
   format_titles() |>
   rename("Council District" = Coundist) |>
-  rename("Area sqkm" = "Area Sqkm") |>
+  rename("Area (sqkm)" = "Area Sqkm") |>
+  rename("Tree Density (sqkm)" = "Tree Density") |>
   datatable(style = "bootstrap5", caption = "Top 10 Districts With Most Dense Trees") |>
-  formatRound(c("Shape Area", "Area sqkm", "Tree Density"), digits = 2)
+  formatRound(c("Area (sqkm)", "Tree Density (sqkm)"), digits = 3)
 
 ```
+:::{.callout-note title="Findings"}
+**Council District 7** in Manhattan has the most dense trees with **283.549 per sqkm** recorded. Despite having a near top tree count of *15,000*, Council District 7 is the *4th smallest District* in all of the NYC metropolitan area and managed to cram the most trees in one place doing so. Compared to the largest district 50 in Staten Island, it has a tree density of about 78 sqkm, likely due to the size of the district.
+
+Manhattan is a borough that excels in density as it crams in whatever it can into the most popular borough worldwide, appearing 5 times in the top 10 list. Having this mindset could also be a reason districts in Manhattan did so well in this category.
+:::
+## District with Most Amount of Dead Trees
 
 ```{r}
+#Calculating statistics for dead trees
+dead_trees <- all_data |>
+  st_drop_geometry() |>
+  filter(!is.na(Condition), !is.na(CounDist)) |>
+  group_by(CounDist) |>
+  summarize(total_trees = n(),
+            total_dead_trees = sum(Condition == 'Dead', na.rm = TRUE),
+            fraction_dead_trees = total_dead_trees / total_trees * 100,
+            .groups = 'keep') |>
+    left_join(
+    tree_counts |>
+      st_drop_geometry() |>
+      select(CounDist, Borough) |>
+      distinct(CounDist, .keep_all = TRUE),
+    by = "CounDist"
+  ) |>
+  select(CounDist, Borough, total_trees, total_dead_trees, fraction_dead_trees) |>
+  arrange(desc(fraction_dead_trees))
+
+dead_trees |>
+    rename("Council District" = CounDist) |>
+    format_titles() |>
+    rename("Fraction Dead Trees %" = "Fraction Dead Trees") |>
+    datatable(style = "bootstrap5", caption = "Dead Tree Data") |>
+    formatRound("Fraction Dead Trees %", digits = 3)
 
 ```
+:::{.callout-note title="Findings"}
+**Council District 32** in Queens has the highest percent of dead trees compared to the rest of its trees with about **14.255%** of trees being dead. A reason for this could be that Queens generally does not receive attention like Manhattan would; paired with being a very large borough leads to more required maintenance. District 32 does land in the *top 10 of most amount of trees* in the district, explaining there is a ton of work to fix those trees. 
+
+What's interesting is that Brooklyn had no districts in this category, showcasing it either has fewer trees than Queens or is capable to maintain them more effectively.
+:::
+
+## Finding the Most Common Tree Species in Manhattan
+```{r}
+manhattan_species <- all_data |>
+  st_drop_geometry() |>
+  left_join(
+    tree_counts |>
+      st_drop_geometry() |>
+      select(CounDist, Borough) |>
+      distinct(CounDist, .keep_all = TRUE),
+    by = "CounDist"
+  ) |>
+  filter(Borough == "Manhattan") |>
+  group_by(genusspecies) |>
+  summarise(count = n(), .groups = 'keep') |>
+  arrange(desc(count))
+  
+  manhattan_species |>
+    head(50) |>
+    rename("Species" = genusspecies) |>
+    format_titles() |>
+    datatable(style = "bootstrap5", caption = "Most Common Manhattan Trees")
+```
+:::{.callout-note title="Findings"}
+The most common tree species in Manhattan is the **Thornless honeylocust** with **17310** appearances. This appears to be a very common tree across Manhattan as the next most common, the London planetree has about 6000 *fewer* appearances. Trees quickly go to 4 digits, then 3 digits for total appearance, suggesting the Thornless honeylocust may live longer, can adapt to the industrial standards of Manhattan, and actually thrive compared to other species. More statistics would be needed to verify such a claim.
+:::
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
