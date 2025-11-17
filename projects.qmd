@@ -8,11 +8,13 @@ format: html
 Analyzed Netflix's Top 10 to determine why such shows became popular. <br>
 A press release section is also included, using evidence to promote specific shows based on certain variables. [Link to project](./mp01.html)
 
-## Mini-Project 02: TBD
-TBD
+## Mini-Project 02: Making Backyards Affordable for All
+Explored area codes near metropolitan areas in the U.S. and determined which are best representative for a YIMBY (Yes in My Backyard) movement. \
+Analysis was performed for these metropolitan areas, the determining factors being rent burden and population growth. [Link to project](./mp02.html)
 
-## Mini-Project 03: TBD
+## Mini-Project 03: Visualizing and Maintaining the Green Canopy of NYC
 TBD
+[Link to project](./mp03.html)
 
 ## Mini-Project 04: TBD
 TBD

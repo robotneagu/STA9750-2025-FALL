@@ -1,0 +1,344 @@
+---
+title: "<center>Mini Project 3: <br>Visualizing and Maintaining the <br>Green Canopy of NYC</center>"
+format: 
+  html:
+    theme: united
+    code-fold: true
+    code-summary: "Show the code"
+    toc: true
+website:
+  navbar:
+    background: success
+execute:
+  warning: false
+  message: false
+---
+
+# 📚Introduction
+Many New Yorkers do not appreciate the trees that benefit them and their environment on a daily basis. Over **1 million trees** (specifically 1,093,439 trees) are spread across the Big Apple yet only litter is scattered through most of them. Such people do not consider that these trees are essential for reducing CO2 exposure, provide shelter for birds and squirrels, and provide shade while giving the tree sunlight to grow.
+
+While this project is not meant to start a "stop litter" movement, it analyzes trees and their corresponding district to make a proposal for the NYC Parks Department. Specifically, the goal is to create a new program on why action must be taken in a _specific district_ addressing its trees using visualizations gathered from official NYC data websites.
+
+```{r}
+#| code-summary: "Setting up code libraries"
+
+#Below are the following libraries used for this project.
+
+#Obtaining data and performing SQL like commands
+library(sf)
+library(tidyverse)
+library(httr2)
+
+#Data injection
+library(glue)
+library(readxl)
+library(tidycensus)
+
+#Display datatables
+library(DT)
+
+#Visualization library
+library(ggplot2)
+library(plotly)
+
+library(tidyr)
+```
+
+
+# 💽Download NYC City Council District Boundaries
+Data was collected from the [NYC Department of Planning](https://www.nyc.gov/content/planning/pages/resources/datasets/city-council) using the latest release as of making this project, **25C**. The *shoreline version* will be collected as it can display more trees compared to the the water area version.
+
+```{r}
+#| code-summary: "Downloading the Boundary Data"
+#| output: false
+
+#The following code was inspired from how we inject data from mp02
+
+#Create directory, if it does not exist already, to store data
+if(!dir.exists(file.path("data", "mp03"))){
+    dir.create(file.path("data", "mp03"), showWarnings=FALSE, recursive=TRUE)
+}
+
+library <- function(pkg){
+    ## Mask base::library() to automatically install packages if needed
+    ## Masking is important here so downlit picks up packages and links
+    ## to documentation
+    pkg <- as.character(substitute(pkg))
+    options(repos = c(CRAN = "https://cloud.r-project.org"))
+    if(!require(pkg, character.only=TRUE, quietly=TRUE)) install.packages(pkg)
+    stopifnot(require(pkg, character.only=TRUE, quietly=TRUE))
+}
+
+#Define zip file name to indicate whether it will exist
+zip_name <- "nycc_25c.zip"
+
+url_path <- "https://s-media.nyc.gov/agencies/dcp/assets/files/zip/data-tools/bytes/city-council/nycc_25c.zip"
+
+#Zip file path
+zip_path <- "./data/mp03/"
+
+#Downloads the required file into the correct directory
+if(!file.exists(glue(zip_path, zip_name))){
+  download.file(url = url_path, destfile = paste0(zip_path, "/", zip_name), mode = "wb")
+}
+
+unzipped_pathname <- paste0(zip_path, "nycc_25c/")
+
+#Unzip file if necessary
+if(!dir.exists(unzipped_pathname)){
+  unzip(paste0(zip_path, "/", zip_name), exdir = zip_path, overwrite = TRUE)    #Paste0 to specify pathname of the file
+}
+
+
+#Read shp file and store it as the data variable
+DATA <- sf::st_read(paste0(unzipped_pathname, "nycc.shp"))
+
+
+#Transform result into WGS 84
+DATA <- st_transform(DATA, crs="WGS84")
+```
+
+```{r}
+#| code-summary: Raw District Boundary Data Output
+
+#Returning transformed DATA to user
+datatable(DATA, style = "bootstrap5", caption = "Raw Data Output")
+```
+
+:::{.callout-note title = "Explaining the Table"}
+*Note: column names were left untouched to show raw data. It may be difficult to understand at first glance.*
+
+The datatable may look scary but provides important information later on. Most notably are columns *Shape_Leng* showing total length of a district in NYC and *Shape_Area* showing how large the district is. Currently, there are **51 districts** to work with.
+:::
+
+:::{.callout-tip title = "Data Made Easier"}
+The visualization below makes it much easier to see where trees are being looked at. More specifically, it shows the **5 boroughs** of the NYC metropolitan area with a boundary acting as a district.
+:::
+
+```{r}
+#Visualization of area being worked on
+ggplot() +
+  geom_sf(data = DATA, mapping = aes(geometry = geometry)) +
+         theme_bw()
+rm(all)
+```
+
+# 💽Download NYC Tree Points
+
+Since this project focuses on trees, data containing tree location is used as a main metric. The code below downloads the necessary data.
+```{r}
+#| code-summary: "Downloading the Tree Data"
+
+#The following code is a modified version of data acquisition from https://michael-weylandt.com/STA9750/archive/AY-2024-SPRING/miniprojects/mini01.html
+
+if(!file.exists("data/mp03/nyc_tree_locations.csv")){
+    
+    #URL was modified as per instructions
+    ENDPOINT <- "https://data.cityofnewyork.us/resource/hn5i-inap.geojson"
+    
+    BATCH_SIZE <- 50000   #Edit if we start to see long computations for visuals. Same with offset.
+    OFFSET     <- 0
+    END_OF_EXPORT <- FALSE
+    ALL_DATA <- list()
+    
+    while(!END_OF_EXPORT){
+        cat("Requesting items", OFFSET, "to", BATCH_SIZE + OFFSET, "\n")
+        
+        req <- request(ENDPOINT) |>
+                  req_url_query(`$limit`  = BATCH_SIZE, 
+                                `$offset` = OFFSET)
+        
+        resp <- req_perform(req)
+        
+        batch_data <- st_read(resp_body_string(resp))
+        # batch_data <- fromJSON(resp_body_string(resp))
+        
+        ALL_DATA <- c(ALL_DATA, list(batch_data))
+        
+        if(NROW(batch_data) != BATCH_SIZE){
+            END_OF_EXPORT <- TRUE
+            
+            cat("End of Data Export Reached\n")
+        } else {
+            OFFSET <- OFFSET + BATCH_SIZE
+        }
+    }
+    
+    ALL_DATA <- bind_rows(ALL_DATA)
+    
+    cat("Data export complete:", NROW(ALL_DATA), "rows and", NCOL(ALL_DATA), "columns.")
+
+    write_csv(ALL_DATA, "data/mp03/nyc_tree_locations.csv")
+}
+```
+
+# 🗺Mapping️️ NYC Trees
+
+Now that the necessary data has been collected, a visualization will be made to display:
+
+- Density of trees in a district
+- Exact locations of trees
+- Health of each tree
+
+The visualization will serve as a starting point at which area(s) should be addressed with the best possible reasons.
+```{r}
+#| output: false
+#| code-summary: "Creating graph"
+
+#Read in data from the files that were downloaded.
+boundaries <- st_read('./data/mp03/nycc_25c')
+tree_data <- read.csv('./data/mp03/nyc_tree_locations.csv', stringsAsFactors = FALSE) |>
+  filter(!is.na(tpcondition), !is.na(geometry)) |>
+  #Rename column to be easier to understand on interactive visualization
+  rename("Condition" = tpcondition)
+
+# Parse the "c(lon, lat)" string
+tree_data_parsed <- tree_data |>
+  mutate(coord_str = trimws(gsub("c\\(|\\)", "", geometry))) |>  # Remove "c(" and ")"
+  separate_wider_delim(coord_str, delim = ",", names = c("x", "y"), too_few = "align_start") |>
+  mutate(
+    x = as.numeric(x),
+    y = as.numeric(y)
+  )
+
+# Create sfc geometry
+tree_data$geometry <- st_as_sfc(paste0("POINT(", tree_data_parsed$x, " ", tree_data_parsed$y, ")"))
+
+# Convert to sf
+tree_data <- st_as_sf(tree_data)
+st_crs(tree_data) <- 4326
+
+#Joining the boundary and tree data
+all_data <- st_transform(tree_data, st_crs(boundaries))
+all_data <- st_join(all_data, boundaries)
+all_data_small <- all_data |>
+  slice_head(n=30000)#Used for later questions
+
+#Count trees per district
+tree_counts <- all_data |>
+  group_by(CounDist) |>
+  summarise(tree_count = n(), .groups = 'drop')
+
+#Add findings to boundaries dataset
+boundaries <- boundaries |>
+  st_join(tree_counts)
+
+#Store plot in variable to make it interactive in the next code block
+tree_plot <- ggplot() +
+  geom_sf(data = boundaries, mapping = aes(geometry = geometry, fill = tree_count)) +
+  scale_fill_gradient(low = "#F0FFF0", high = "#084511", name = "Tree Count") +
+  geom_sf(data = all_data_small, mapping = aes(geometry = geometry, color = Condition), alpha = 0.5, size = 0.3) +
+  guides(color = "none") +
+  scale_color_discrete() +
+  labs(color = "Condition",
+       title = "Street Trees in NYC by City Council District",
+       subtitle = "Points represent the trees, shade shows tree density") +
+  guides(color = guide_legend(override.aes = list(size = 3))) +
+  theme_bw()
+tree_plot
+```
+
+
+```{r}
+#Make plot interactive using plotly
+ggplotly(tree_plot)
+```
+
+:::{.callout-note title = "Notes on the Visualization"}
+*Note: The graph only contains the first 30000 trees due to hardware limitations. The statements below only reflect this visualization and could change afterwards.*
+
+Within the 5 boroughs, **Staten Island** has the greatest density of trees yet most of these trees have an unknown or dead status. The Bronx has a large quantity of trees rated in excellent condition likely due to being far away from the JFK airport and being a starting point outside the metropolitan area. Manhattan also has many trees above the first bottom district, either representing an act was made to plant more trees or is simply used as decoration to attract tourists. This is an interactive graph, explore other areas to find different results!
+:::
+
+
+# 🌲District-Level Analyses of Trees
+
+With the tree points and district boundaries now connected to one data table, more analysis can be done besides looking at the visualization. For instance, it is must easier to determine which district had the most amount of trees instantly, not having to second guess our answer when doing this visually.
+
+Note that _all trees_ will be included in the following analyses.
+```{r}
+#| show: false
+#Remove datasets that repeat tree data. Also remove redundant values
+rm(tree_data, tree_data_parsed, unzipped_pathname, url_path, DATA, boundaries, zip_name, zip_path, ALL_DATA)
+```
+## Finding District with Most Trees
+
+```{r}
+#| code-summary: "District with most trees"
+#Find the district with the most trees
+tree_counts <- all_data |>
+  group_by(CounDist) |>
+  summarise(tree_count = n(), .groups = 'drop') |>
+  mutate(
+  Borough = case_when(
+    CounDist >= 1  & CounDist <= 10 ~ "Manhattan",
+    CounDist >= 11 & CounDist <= 18 ~ "Bronx",
+    CounDist >= 19 & CounDist <= 32 ~ "Queens",
+    CounDist >= 33 & CounDist <= 48 ~ "Brooklyn",
+    CounDist >= 49 & CounDist <= 51 ~ "Staten Island",
+    TRUE ~ NA_character_
+  )) |>
+  arrange(desc(tree_count))
+
+#Create a format_titles variable to make the table columns look nicer. Used in later chunks
+#Credit: Professor Michael Weylandt
+library(stringr)
+format_titles <- function(df){
+    colnames(df) <- str_replace_all(colnames(df), "_", " ") |> str_to_title()
+    df
+}
+
+tree_counts |>
+  st_drop_geometry() |>
+  slice_head(n=10) |>
+  select(CounDist, Borough, tree_count) |>
+  format_titles() |>
+  rename("Council District" = Coundist) |>
+  datatable(style = "bootstrap5", caption = "Top 10 Districts With The Most Trees")
+  
+```
+
+:::{.callout-note title="Findings"}
+**Council District 51** in Staten Island has the most trees with **70965** recorded. Oddly enough, Staten Island also ranks 2nd and 6th for having the most trees, possibly indicating it is tree dense with so many trees in one borough (Staten Island only has 3 districts).
+
+Many Council Districts for Queens also appear, alluding that there is a good chance trees will be seen whichever neighborhood one enters.
+:::
+
+## District with Highest Tree Density
+
+```{r}
+#Use the Shape_Area column to act as the density maker per district
+density_trees <- all_data |>
+  st_drop_geometry() |>
+  group_by(CounDist) |>
+    summarise(
+    Shape_Area = first(Shape_Area),  # or sum()/mean() if appropriate
+    .groups = "drop"
+  ) |>
+  left_join(
+    tree_counts |>
+      st_drop_geometry() |>
+      select(CounDist, tree_count, Borough) |>
+      distinct(CounDist, .keep_all = TRUE),  # Remove duplicate CounDist rows
+    by = "CounDist"
+  ) |>
+  mutate(
+    area_sqkm = as.numeric(Shape_Area) / 1e6,
+    tree_density = tree_count / area_sqkm
+  ) |>
+  arrange(desc(tree_density)) |>
+  select(CounDist, Borough, tree_count, Shape_Area, area_sqkm, tree_density)
+  
+
+density_trees |>
+  format_titles() |>
+  rename("Council District" = Coundist) |>
+  rename("Area sqkm" = "Area Sqkm") |>
+  datatable(style = "bootstrap5", caption = "Top 10 Districts With Most Dense Trees") |>
+  formatRound(c("Shape Area", "Area sqkm", "Tree Density"), digits = 2)
+
+```
+
+```{r}
+
+```
