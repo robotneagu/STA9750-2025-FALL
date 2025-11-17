@@ -411,10 +411,50 @@ manhattan_species <- all_data |>
 The most common tree species in Manhattan is the **Thornless honeylocust** with **17310** appearances. This appears to be a very common tree across Manhattan as the next most common, the London planetree has about 6000 *fewer* appearances. Trees quickly go to 4 digits, then 3 digits for total appearance, suggesting the Thornless honeylocust may live longer, can adapt to the industrial standards of Manhattan, and actually thrive compared to other species. More statistics would be needed to verify such a claim.
 :::
 
+## Tree Species Closest to Baruch College
 
+```{r}
+#Create point of Baruch College using longitude and latitude
+baruch_point <- st_point(c(-73.98376, 40.74019)) |>     #Point is approximated
+  st_sfc(crs = 4326) |>
+  st_transform(st_crs(all_data))
 
+#EPSG:2263 is NAD83 / New York Long Island (ftUS); metric used in mapping
+baruch_point <- st_transform(baruch_point, 2263)
 
+# Create 1 km buffer around Baruch College (also reduces RAM usage)
+buffer_1km <- st_buffer(baruch_point, dist = 1000)
 
+# Filter all_data to only those within the buffer
+all_data_near <- st_filter(all_data, buffer_1km, .predicate = st_intersects)
+
+#Finding the tree species closest to Baruch College
+baruch_species <- all_data_near |>
+  filter(!is.na(genusspecies), !is.na(CounDist)) |>
+  left_join(
+    tree_counts |>
+      st_drop_geometry() |>
+      select(CounDist, Borough) |>
+      distinct(CounDist, .keep_all = TRUE),
+    by = "CounDist"
+  ) |>
+  mutate(distance_to_baruch = as.numeric(st_distance(geometry, baruch_point))) |>
+    arrange(distance_to_baruch) |>
+  head(50) |>
+  select(genusspecies, distance_to_baruch, riskrating)
+
+baruch_species |>
+  st_drop_geometry() |>
+  rename("Species" = genusspecies) |>
+  format_titles() |>
+  datatable(style = "bootstrap5", caption = "Tree Species Closest to Baruch (1km radius)") |>
+  formatRound("Distance To Baruch", digits = 4)
+```
+:::{.callout-note title="Findings"}
+The closest tree species to Baruch College is the **Quercus acutissima - sawtooth oak** with a distance of **54.3122 meters**. This tree has a healthy rating given it has no Risk Rating.
+
+There also appeared to be a trend of *Risk Rating* and departing away from Baruch College up to 1 km away. Being further away showed more trees with a risk rating present. This could indicate institutions such as Baruch College tend to provide better maintenance for their trees compared to having no college around.
+:::
 
 
 
