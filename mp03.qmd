@@ -263,7 +263,7 @@ Note that _all trees_ will be included in the following analyses.
 ```{r}
 #| show: false
 #Remove datasets that repeat tree data. Also remove redundant values
-rm(tree_data, tree_data_parsed, unzipped_pathname, url_path, DATA, boundaries, zip_name, zip_path, ALL_DATA)
+rm(tree_data, tree_data_parsed, unzipped_pathname, url_path, DATA, zip_name, zip_path, ALL_DATA)
 ```
 ## Finding District with Most Trees
 
@@ -456,16 +456,96 @@ The closest tree species to Baruch College is the **Quercus acutissima - sawtoot
 There also appeared to be a trend of *Risk Rating* and departing away from Baruch College up to 1 km away. Being further away showed more trees with a risk rating present. This could indicate institutions such as Baruch College tend to provide better maintenance for their trees compared to having no college around.
 :::
 
+# 🪵NYC Parks Proposal
 
+## Project Description
 
+Walking in an area full of dead trees may feel like a barren wasteland. This statement is what it feels like to enter the Rockaways in District 32. These *dead trees must be repurposed* in ways that can benefit both humans and wildlife while being *replaced with new trees* to grow and prosper in their place. Therefore, I propose to **replace at least 4,000 trees**, **remove all stumps**, and **plant at least 3,500 _new_ trees** to effectively renovate District 32 using as little budget needed.
 
+## District Map
 
+The following visualization provides information on where trees are located in our district.
 
+```{r}
+#Filter for only District 32
+dist32 <- all_data |>
+  filter(CounDist == 32) |>
+  st_join(boundaries, by = "CounDist")
 
+boundary_32 <- boundaries |> 
+  filter(CounDist.x == 32)
 
+#Create the visualization
+ggplot() +
+geom_sf(data = boundary_32, mapping = aes(geometry = geometry)) +
+geom_sf(data = dist32, mapping = aes(geometry = geometry, color = Condition, alpha = Condition), size = 1) +
+  scale_alpha_manual(values = setNames(c(1, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3), levels(dist32$Condition)), guide="none") +
+labs(color = "Condition",
+     title = "City Council District 32") +
+guides(color = guide_legend(override.aes = list(size = 3))) +
+theme_bw() +
+theme(aspect.ratio = 0.90)
+```
+At first glance, most trees are in excellent or good condition, so why worry? Clearly, the Rockaways at the bottom has healthy trees but as we move upwards, tree condition begins to degrade. The Ozone Park at the top has many trees in the good category while the neighborhood at the right has trees that are critical or dead. Even the trees in between the top and bottom areas lost their excellent condition. 
 
+Lets also think about the geographic area being spoken about here. The Rockaways are exposed to more severe weather compared to the rest of NYC given it is surrounded in water in a dense manner. Having debris of dead trees poses a threat for households to lose power or break the structure. It even poses a threat to humans all the time from splinters to having debris thrown into one's face from the winds. If this is not convincing enough, the numbers might change your mind.
 
+## Quantitative Comparison
 
+District 32 had the highest percent of dead trees in NYC, calculated to be about **14.2%** with **4315 dead trees** sitting there doing nothing. These statistics will be compared with districts **30, 42,** and **46** as they are all adjacent to district 32. District 30 is an outliter for not being next to water but can represent how trees perform in different areas.
+
+The chart and bar graph below indicate additional statistics to look at.
+```{r}
+#Compares percent of dead trees across selected districts
+dist_comparison <- dead_trees |>
+  st_drop_geometry() |>
+  filter(CounDist %in% c(32, 30, 42, 46)) |>
+  left_join(
+    density_trees |>
+      st_drop_geometry() |>
+      select(CounDist, area_sqkm, tree_density) |>
+      distinct(CounDist, .keep_all = TRUE),
+             by = "CounDist")
+
+ggplot(dist_comparison, aes(x=reorder(factor(CounDist), -fraction_dead_trees), y=fraction_dead_trees, fill = CounDist == 32)) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = paste0(round(fraction_dead_trees, 2), "%")),
+          hjust = -0.1, size = 3) +
+  coord_flip() +
+  scale_fill_manual(values = c("FALSE" = "lightgray", "TRUE" = "#e95420"), guide = "none") +
+  labs(
+    title = "Percentage of Dead Trees Across Districts",
+    subtitle = "District 32 is highlighted as the target",
+    x = "Council District",
+    y = "Percentage of Dead Trees"
+  ) +
+  ylim(0, 15) +
+  theme_bw()
+
+```
+Clearly, District 32 has the most amount of dead trees within the area compared to the other selected districts. Reasons could include better maintenance by the community and an area that can have trees thrive more given they are no longer surrounded by water. District 30 stands out as being very close to the dead tree percentage of district 32, but consider district 30 has far greater tree density and count compared to district 32. In short, this is comparing a tree density of 84.4 trees per square kilometer in District 32 to 136.4 trees per square kilometer in District 30. District 32 likely has fewer trees with Rockaway Beach and does not get the attention it deserves to fix the dead tree issue.
+
+## Conclusion
+
+If you are still not convinced, take a look of these districts with dead trees only:
+```{r}
+#Add the 3 districts
+boundary_32 <- boundaries |> 
+  filter(CounDist.x %in% c(32, 30, 42, 46))
+
+dist32 <- all_data |>
+  filter(CounDist %in% c(32, 30, 42, 46), Condition %in% "Dead")
+
+#Create the visualization
+ggplot() +
+geom_sf(data = boundary_32, mapping = aes(geometry = geometry)) +
+geom_sf(data = dist32, mapping = aes(geometry = geometry), size = 0.7, color = "#e1cb7e", alpha = 0.5) +
+labs(title = "City Council District 32") +
+theme_bw() +
+theme(aspect.ratio = 0.90)
+```
+
+Council District 32 should now stand out as having the highest dead tree percentage. Districts like 42 and 46, whom are close to water, also have many dead trees but not in such a dense fashion like District 32. Keep in mind that District 32 is very close to the JFK airport, not having enough trees in excellent condition could negatively impact residents as less CO2 gas is absorbed by the trees. We can start small by targeting the most critical neighborhoods and move our way to replace the dead trees and stumps with new trees in the future.
 
 
 
