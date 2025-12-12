@@ -577,7 +577,6 @@ sf::sf_use_s2(TRUE)
 
 ```{r}
 #| output: false
-setwd('./data/Final/')
 
 # Ensure dates and create year/month
 restaurant_isA <- clean_restaurant_data |>
