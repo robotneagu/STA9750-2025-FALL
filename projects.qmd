@@ -13,16 +13,28 @@ Explored area codes near metropolitan areas in the U.S. and determined which are
 Analysis was performed for these metropolitan areas, the determining factors being rent burden and population growth. [Link to project](./mp02.html)
 
 ## Mini-Project 03: Visualizing and Maintaining the Green Canopy of NYC
-TBD
+Downloaded data via APIs to visualize trees within NYC. The `sf` library was the focus of visualizations.\
+
+Analysis was performed on the condition and density of the trees alongside a proposal on why a specific district should have the most attention regarding dying trees.
 [Link to project](./mp03.html)
 
-## Mini-Project 04: TBD
-TBD
+## Mini-Project 04: Just the Fact(-Check)s, Ma’am!
+Scraped data from the CES BLS to perform analysis on job status in the U.S. over time.\
 
-## Final Project
-TBD
+Looked at 2 quotes from separate politicians and determined if they were telling the truth based on the analysis performed. [Link to project](./mp04.html)
+
+## Final Project: Inspecting the Weather
+Looked at whether a relationship exists with inspection ratings and the weather. Answered How Much do Weather Conditions Impact Inspection Results of Establishments in New York City? \
+
+[Presentation Link](./FinalPresentation.html) \
+
+Project Report Link: TBD \
+
+Technical Report Link: TBD
 ```{r}
 #| include: false
 1+1
 ```
+\
+
 Last Updated: `r format(Sys.time(), "%A %m-%d, %Y at %H:%M%p")`
