@@ -495,7 +495,7 @@ Despite the smaller sample size, this test proved that revisions are not decreas
 Given our data analysis on CES data, we can apply what we explored and check the claim of a politician. USA specifically is known to throw out false claims and using our gathered analysis can determine if that politician is telling the truth or is a complete lie, denoted "Pants on Fire".
 
 :::{.callout-warning title="Note!"}
-Reminder that these fact checks are constructive critism, not attempting to harass or downplay the politician. Please take any personal bias you see
+Reminder that these fact checks are constructive criticism, not attempting to harass or downplay the politician. Please take any personal bias you see as intended for research purposes.
 :::
 
 ## Fact Check 1: More Job Openings During the Pandemic
