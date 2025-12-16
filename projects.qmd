@@ -28,7 +28,7 @@ Looked at whether a relationship exists with inspection ratings and the weather.
 
 [Presentation Link](./FinalPresentation.html) \
 
-Project Report Link: TBD \
+[Project Summary Report Link](./FinalSummary.html) \
 
 Technical Report Link: TBD
 ```{r}
