@@ -30,7 +30,7 @@ Looked at whether a relationship exists with inspection ratings and the weather.
 
 [Project Summary Report Link](./FinalSummary.html) \
 
-Technical Report Link: TBD
+[Technical Report Link](./FinalTechReport.html) \
 ```{r}
 #| include: false
 1+1
