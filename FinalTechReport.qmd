@@ -1,0 +1,1033 @@
+---
+title: "**Weather Impact on NYC Inspections: Technical Report**"
+author: "Robert Neagu"
+date: 12-18-2025
+format: 
+  html:
+    theme:
+      light: cerulean
+      dark: cyborg
+    respect-user-color-scheme: true
+    code-fold: true
+    code-summary: "Show the code"
+    toc: true
+    code-tools: true
+    embed-resources: true
+website:
+  navbar:
+    background: primary
+execute:
+  warning: false
+  message: false
+---
+
+# Abstract
+
+This report investigates the possible relationship between weather conditions and results of inspections performed by the New York City Department of Health and Mental Hygiene (NYC DOHMH) and the New York City Department of Consumer and Worker Protection (NYC DCWP) on establishments within the five boroughs. Using publicly available data on these inspections, council districts, and weather data, I performed visualization techniques and statistical analysis to determine whether factors like temperature, precipitation, and snowfall impact inspection results. The report is structured for reproducible research with the inclusion of the complete code alongside detailed documentation, ensuring the findings are verifiable and replicable. Note this report covers all supporting questions (SQs) to answer the overarching question and all code was made in R.
+
+# Introduction
+
+## Background
+
+Inspections are performed in NYC everyday to ensure businesses are properly evaluated and have their results showcased to their customers. Such inspections are performed by DCWP and DOHMH where each department looks into different aspects within NYC. For example, DCWP inspects a plethora of violations done by any business such as parking and sanitary violations. Meanwhile, DOHMH focuses more on food quality, looking at restaurants and cafes, evaluating the quality of how the food is made, preserved, and sanitary practices.\
+
+Prior research was published on ScienceDirect that suggests environment factors can influence inspection outcomes. One research study, [**Hot Weather Impacts on New York City Restaurant Food Safety Violations and Operations**](https://www.sciencedirect.com/science/article/pii/S0362028X2208646X) looked into whether high temperatures increase food safety risks in NYC restaurants. The study showcased nearly all restaurants took no preventative action to maintain perishable foods, a likely cause of food safety violations from inspections to increase during high temperature days. The authors concluded that these weather days, alongside power outages for food preservation, "likely increase food safety risks in restaurants" and suggested guidelines be implemented on restaurants to mitigate these risks.\
+
+## Overarching Question
+
+**"How much do weather conditions impact the results of inspections of establishments in New York City?"**\
+
+This is broken down by answering the following SQs:
+
+- What **Weather Conditions** Show the *Lowest* and *Highest* Inspection Results Over Time? Are There Areas *Favored* Over Others?\
+- Which **Months of the Year** are *Best* for Food Inspection?\
+- Is there any *Relationship* With What **Type of Food** Was Being Inspected?\
+- What **Relationship** Exists For The Inspector After Completing *Each Subsequent* Inspection? Does a Difference Exist between *Restaurant Inspectors* and *Worker Inspectors*?\
+
+## Objectives
+
+- Acquire historical data on NYC DCWP inspections and NYC DOHMH inspections
+- Obtain historical weather data for NYC. Also acquire council district shape file to visualize NYC.
+- Clean and prepare data for analysis
+- Perform statistical analysis for each SQ
+- Visualize data to identify patterns and trends
+- Draw conclusions and suggest future research proposals
+
+## Report Structure
+
+The report begins by demonstrating how APIs are used to acquire all necessary data. Cleaning the data will be explored in depth. The data analysis section will focus on answering each SQ using visualizations and/or statistical tests. Lastly, the conclusion will go over primary findings, mention limitations of the study, and suggest future research proposals.
+
+# Data Acquisition
+
+Before acquiring data, ensure that all necessary libraries are loaded into the code.
+```{r}
+#| output: false
+#| code-summary: Loading Necessary Libraries
+
+#Obtaining data and performing SQL like commands
+library(sf)
+library(tidyverse)
+library(httr2)
+
+#Data injection
+library(glue)
+library(readxl)
+library(tidycensus)
+
+#Display datatables
+library(DT)
+
+#Visualization libraries
+library(ggplot2)
+library(plotly)
+library(viridis)
+library(gganimate)
+library(scales)
+
+#QOL
+library(tidyr)
+library(lubridate)
+library(readr)
+```
+\
+
+Note that all data acquisition code has a checking system to responsibly download data. This means that if the data already exists locally, it will read that file instead of constantly re-downloading the data.
+
+## NYC DCWP
+
+### Source
+[NYC OpenData, DCWP Inspections](https://data.cityofnewyork.us/Business/DCWP-Inspections/jzhd-m6uv/about_data)\
+
+### Data Description
+
+Many inspection types have been performed from parking violations to having official permits to sell specific items. About 210,000 rows of data have been entered for inspections between July 2023 through October 2025.
+
+### Key Columns
+
+- `inspection_type`: What type of inspection was performed
+- `inspection_status`: Whether a violation was issued and describes the type of violation
+- `zip_code`: Useful for location bias
+- `latitude` & `longitude`: Allows visual analysis through the NYC map
+
+Since `inspection_status` shows the type of violation, some analysis will treat it as a binary column by mentioning if there was a violation.
+
+### Extraction Method
+
+An endpoint API is used to extract the data. Note that the API defaults to only 1000 rows. This is overcome by stating `?$limit=300000` at the end of the URL where the limit specifies how many maximum rows will be extracted. 300,000 rows are chosen as the data set will continue growing in the future.
+
+```{r}
+#| code-summary: Downloading the NYC DCWP Data
+#| output: false
+
+#Create directory, if it does not exist already, to store all data
+if(!dir.exists(file.path("data", "Final"))){
+    dir.create(file.path("data", "Final"), showWarnings=FALSE, recursive=TRUE)
+}
+
+##Downloading DCWP data
+DCWP_path <- "./data/Final/DCWP_Inspection_Data.csv"
+if(!file.exists(DCWP_path)){
+  # Download csv file from NYC Open Data API endpoint. Set limit to 300k to download all rows
+  download.file(url = "https://data.cityofnewyork.us/resource/jzhd-m6uv.csv?$limit=300000",
+                destfile = DCWP_path, mode = "wb")
+}
+#Read DCWP data
+dcwp_data <- read_csv(DCWP_path)
+```
+
+## NYC DOHMH
+
+### Source
+[NYC Open Data, DOHMH Inspections](https://data.cityofnewyork.us/Health/DOHMH-New-York-City-Restaurant-Inspection-Results/43nn-pn8j/about_data)\
+
+### Data Description
+
+Provides many details about an inspection done for a restaurant or cafe. Some noticeable columns are a description of the cuisine, when the inspection took place, the violation details, grade received, and type of inspection.  About 293,000 rows of data have been entered for inspections between August 2018 through December 2025.
+
+### Key Columns
+- `inspection_date`: Date when the inspection was performed. Dates of 1/1/1900 mean no inspection was recorded.
+- `grade`: Letter grade of A, B, C. Z and P indicate pending grade.
+- `location`: Shows where the business is using latitude and longitude. Provides easy implementation to the NYC map.
+
+### Extraction Method
+
+The same method as the DCWP was used via a different endpoint API as both are stored in NYC Open Data. `?$limit=300000` was also included for consistency between the tables.
+
+```{r}
+#| code-summary: Downloading the NYC DOHMH Data
+#| output: false
+
+##Downloading NYC Restaurant Data
+restaurant_data_path <- "./data/Final/DOHMH_NYC_Restaurants.csv"
+
+if(!file.exists(restaurant_data_path)){
+  # Download csv file from NYC Open Data API endpoint. Set limit to 300k to download all rows
+  download.file(url = "https://data.cityofnewyork.us/resource/43nn-pn8j.csv?$limit=300000",
+                destfile = restaurant_data_path, mode = "wb")
+}
+#Read DOHMH Restaurant data
+restaurant_data <- read_csv(restaurant_data_path)
+```
+
+## Weather Data
+
+### Source
+[Open-Meteo](https://open-meteo.com/en/docs)\
+
+Note the link will not showcase the data downloaded as manually checking the boxes is required to obtain desired data.
+
+### Data Description
+
+API archive that provides flexibility on what specific weather columns to download and from nearly any time range. The columns looked at the most for this project are the key columns. Weather data is daily collected from January 2010 to December 2025 to ensure both inspection tables are covered.
+
+### Key Columns
+
+- `weather_code (wmo code)`: Overall intensity of weather for the day. Higher values indicate greater intensity.
+- `Temperature`: Recorded in Fahrenheit, 3 separate columns for the average, maximum, and minimum temperature recorded for the day.
+- `wind_speed_10m_max (mp/h)`: Maximum wind speed recorded in the day in miles per hour (mp/h).
+- `precipitation_sum (mm)`: Total precipitation recorded in the day in millimeters (mm).
+- `rain_sum (mm)`: Total rain recorded of the day in millimeters.
+- `snowfall_sum (cm)`: Total snowfall accumulated during the day in centimeters.
+
+### Extraction Method
+
+Check boxes were manually clicked on, but the API URL remains consistent during download. While manual intervention is not good practice, the code can be adjusted in the future through library `RSelenium` to perform manual operations. The URL method was used to avoid getting blacklisted from extracting the data.
+
+```{r}
+#| code-summary: Downloading Weather Data Data
+#| output: false
+
+### Downloading weather data via API:
+##Downloading Weather Data
+weather_path <- "./data/Final/weather_data.csv"
+
+# Check if file already exists
+if(!file.exists(weather_path)){
+    # Create a temporary file to store the downloaded data
+    tmp <- tempfile(fileext = ".csv")
+    download.file(url = "https://archive-api.open-meteo.com/v1/archive?latitude=40.7143&longitude=-74.006&start_date=2010-01-01&end_date=2025-12-05&daily=weather_code,temperature_2m_mean,temperature_2m_max,temperature_2m_min,wind_speed_10m_max,daylight_duration,precipitation_sum,rain_sum,snowfall_sum&timezone=auto&temperature_unit=fahrenheit&wind_speed_unit=mph&format=csv",
+                  destfile = tmp, mode = "wb")
+}
+#Read the weather data, omitting unnecessary columns
+weather_data <- read_csv(weather_path, skip=2)
+```
+
+## Council District
+
+### Source
+[NYC Department of Planning](https://www.nyc.gov/content/planning/pages/resources/datasets/city-council)\
+
+Version 25C was used for this project.
+
+### Data Description
+
+While the data is initially downloaded as a zip file, the focus is the `.shp` shape file to visualize a map of NYC with council district borders. The purpose of the districts is to see concentration of inspections throughout the city.
+
+### Key Columns
+
+Since this is a `.shp` file, no columns are key besides `geometry`.
+
+### Extraction Method
+
+First, download the zip file from this [URL](https://s-media.nyc.gov/agencies/dcp/assets/files/zip/data-tools/bytes/city-council/nycc_25c.zip) using `download.file(url =)`. Then `unzip` is used to extract all files. Lastly, we read the shape file `nycc.shp`, transform it to a spacial type using `st_transform` and stored in variable `nyc_map` for easy accessibility.
+```{r}
+#| code-summary: Obtain NYC map Shape File
+#| output: false
+
+
+###Downloading the NYC map
+#The following code was inspired from how we inject data from mp02
+
+#Define zip file name to indicate whether it will exist
+zip_name <- "nycc_25c.zip"
+
+url_path <- "https://s-media.nyc.gov/agencies/dcp/assets/files/zip/data-tools/bytes/city-council/nycc_25c.zip"
+
+#Zip file path
+zip_path <- "./data/Final/"
+
+#Downloads the required file into the correct directory
+if(!file.exists(glue(zip_path, zip_name))){
+  download.file(url = url_path, destfile = paste0(zip_path, "/", zip_name), mode = "wb")
+}
+
+unzipped_pathname <- paste0(zip_path, "nycc_25c/")
+
+#Unzip file if necessary
+if(!dir.exists(unzipped_pathname)){
+  unzip(paste0(zip_path, "/", zip_name), exdir = zip_path, overwrite = TRUE)    #Paste0 to specify pathname of the file
+}
+
+#Read shp file and store it as the data variable
+nyc_map <- sf::st_read(paste0(unzipped_pathname, "nycc.shp"))
+
+#Transform result into WGS 84
+nyc_map <- st_transform(nyc_map, crs="WGS84")
+```
+
+# Data Cleaning
+
+After storing all read data into variables, each variable had a copy made that will be cleaned before answering the SQs.
+
+## DCWP Data
+
+First, we use `reframe` to filter the relevant columns for this project. Duplicate rows were then checked and removed, followed by rows that have null values for latitude and longitude.  These coordinates are essential in visualizations made later on and avoids errors working with shape variables. Date-based columns were automatically detected.
+
+```{r}
+#| code-summary: Cleaning DCWP Data
+#| output: false
+
+# Data Cleaning (DCWP)
+# Select relevant columns
+clean_DCWP <- dcwp_data |>
+  reframe(certificate_of_inspection, business_unique_id, dcwp_license_number, inspection_type, inspection_status, zip_code, latitude, longitude, inspection_date = date_of_occurrence)
+# Remove duplicates
+clean_DCWP <- clean_DCWP |> distinct()
+# Remove rows with missing or invalid coordinates
+clean_DCWP <- clean_DCWP |> 
+  filter(!is.na(longitude) & !is.na(latitude) & longitude != 0 & latitude != 0)
+```
+
+## DOHMH Data
+
+The same procedure as DCWP data is followed: filtering relevant columns, removing duplicate rows, and ensuring no essential null values exists. This time, we also set the date starting at year 2022 to omit year 1900 and concentrate data into years closest to the DCWP. Even though year 2022 is not found in the DCWP, it provides more rows that can be analyzed for DOHMH in a somewhat consistent time frame.
+
+```{r}
+#| code-summary: Cleaning DOHMH Data
+#| output: false
+
+#Data Cleaning (restaurants)
+#Select relevant columns
+clean_restaurant_data <- restaurant_data |>
+  reframe(`camis`, `dba`, `boro`, `inspection_date`, `grade`, `grade_date`, `score`, `cuisine_description`, council_district, location)
+
+#Filter data based on weather data date range
+clean_restaurant_data <- clean_restaurant_data |>
+  filter(`grade_date` >= as.Date('2022-01-01'))
+#Filter out rows with missing data in key columns
+clean_restaurant_data <- clean_restaurant_data |>
+  filter(!is.na(location) & !is.na(inspection_date) & !is.na(grade) & !is.na(score) & !is.na(cuisine_description))
+```
+
+## Weather Data & Council Districts
+
+The weather data was manually selected, requiring no data cleaning. Likewise, council districts were from a shape file that needed no cleaning.
+
+# Data Analysis & Answering SQs
+
+## What Weather Conditions Show the Lowest and Highest Inspection Results Over Time? Are There Areas Favored Over Others?
+
+Before answering this SQ, we should take a peek at what the structure of the data looks like and what data will be used. I used the DCWP data for this SQ as it had many rows for a small time frame, providing more consistency between observations. This also allows a comparison with the prior work looked at to see if it applies to DCWP too. Weather data and Council Districts are also used to create visualizations that provide analysis. That said, I used the `glimpse` function to get a sense of how the data is structured for DCWP and weather.
+
+```{r}
+#| code-summary: Glimpse Clean DCWP Data
+
+glimpse(clean_DCWP)
+```
+
+```{r}
+#| code-summary: Glimpse Weather Data
+
+glimpse(weather_data)
+```
+
+It is evident that NA values still exist in the DCWP data, though that is for columns that are not heavily explored. We don't want to remove the `dcwp_license_number` unique identifier as it could be important in later analyses and want to retain the large amount of rows in the data. In addition, many columns are string values that will require encoding to get the easiest analysis approach possible.\
+
+First, I wanted to get a sense of how many total inspections were made for each council district. This provides a way to see density of inspections across NYC and possible changes in analysis that may cause. To make this possible, I first had to alter the cleaned DCWP data by altering latitude and longitude values to be compatible with the shape file. This was achieved by creating a spacial data frame from the cleaned DCWP, performing an inner join with `nyc_map` to intersect points, extract the points as `coords`, reverting clean_DCWP back to a regular data frame, and adjusting the latitude and longitude values to reflect the findings from the spacial data frame.
+
+```{r}
+#| code-summary: Adding Shape Coordinates to DCWP
+
+# Remove rows with missing or invalid coordinates
+clean_DCWP <- clean_DCWP |> 
+  filter(!is.na(longitude) & !is.na(latitude) & longitude != 0 & latitude != 0)
+# Transform to spatial data frame
+clean_sf <- st_as_sf(clean_DCWP, coords = c("longitude", "latitude"), crs = 4326)
+# Spatial join to keep only points within or touching NYC boundaries (include boundary cases)
+clean_sf <- st_join(clean_sf, nyc_map, join = st_intersects, left = FALSE)
+# extract coordinates (X = longitude, Y = latitude) and add them to the data frame
+coords <- st_coordinates(clean_sf)
+# Convert back to regular data frame
+clean_DCWP <- st_drop_geometry(clean_sf)
+#Bring back columns used in later code
+clean_DCWP$longitude <- coords[, "X"]
+clean_DCWP$latitude <- coords[, "Y"]
+```
+
+Performing this transformation makes mapping NYC data efficient for DCWP data. The first visualization can now be made by joining the `nyc_map` and `clean_DCWP`. Note that `inspection_counts` was used as a mask for `clean_DCWP`, allowing the clean data to be used later on. This is a common pattern seen throughout all code. In this case, `inspection_counts` grouped counts of inspections based on council district and summed total inspections per district, then joined the data and visualized it.
+
+```{r}
+#| output: false
+#| code-summary: Joining DCWP and NYC Map
+#Create counts of inspections per district
+inspection_counts <- clean_DCWP |>
+    group_by(CounDist) |>
+    summarise(inspection_count = n(), .groups = "drop")
+
+# Total inspections mapped (after spatial join)
+mapped_total <- sum(inspection_counts$inspection_count, na.rm = TRUE)
+
+# Ensure join key types match
+inspection_counts <- inspection_counts |>
+  mutate(CounDist = as.character(CounDist))
+nyc_map <- nyc_map |>
+  mutate(CounDist = as.character(CounDist))
+
+# Join the counts back to the spatial nyc_map so we can plot with geom_sf
+nyc_map_counts <- nyc_map |>
+  left_join(inspection_counts, by = "CounDist")
+```
+
+```{r}
+#| code-summary: Visualize NYC Map with Inspection Counts
+
+# Plot NYC map with inspection counts filled
+ggplot(nyc_map_counts) +
+    geom_sf(aes(fill = inspection_count), color = "grey30", linewidth = 0.2) +
+    scale_fill_viridis_c(option = "magma", na.value = "white", name = "Inspections") +
+    theme_minimal() +
+    labs(title = "DCWP Inspections in NYC per District",
+         caption = paste("Total inspections mapped:", mapped_total))
+```
+
+The visual shows us that lower and mid Manhattan is the densest area of inspections performed. Areas of Brooklyn and Queens near that Manhattan area are also somewhat dense, with all other districts being not as dense.\
+
+Next, I looked into numeric values of which weather conditions show the lowest and highest number of inspection violations within this time frame. This requires a new variable, `violation_weather` to store the results. I had to add month and year columns to DCWP data to generalize the data as daily weather can be extremely volatile. The weather data was then left joined with `violation_weather` based on time, where weather code was used to measure intensity as it is a general measure of weather regardless of rain or snow. After only looking at the minimum and maximum violations, the following data table was created:
+
+```{r}
+#| code-summary: Weather Conditions with Highest and Lowest Number of Violations
+
+# What weather conditions show the lowest and highest number of violations based on Inspection Status from clean?
+# Convert Inspection Date to Date type
+clean_DCWP$inspection_date <- as.Date(clean_DCWP$inspection_date, format="%m/%d/%Y")
+# Extract year and month from Inspection Date
+clean_DCWP$Year <- format(clean_DCWP$inspection_date, "%Y")
+clean_DCWP$Month <- format(clean_DCWP$inspection_date, "%m")
+# Group by Year, Month, inspection status, and rain_sum to count violations
+violation_weather <- clean_DCWP |>
+  group_by(Year, Month, inspection_status) |>
+  summarise(Violation_Count = n()) |>
+  ungroup() |>
+  # create a month-start date column to match weather_data's time
+  mutate(time = as.Date(paste0(Year, "-", Month, "-01")))
+
+# Merge with weather data by time to get weather conditions as weather_code column
+violation_weather <- violation_weather |>
+  left_join(
+    weather_data |> 
+      mutate(time = as.Date(time)) |> 
+      select(time, `weather_code (wmo code)`),
+    by = "time"
+  )
+# Reorder columns for better readability
+violation_weather <- violation_weather |>
+     select(time, -Month, inspection_status, Violation_Count, "Weather Code (WMO code)" = `weather_code (wmo code)`)
+# View the result
+#str(violation_weather)
+
+# Find min and max counts
+min_count <- min(violation_weather$Violation_Count, na.rm = TRUE)
+max_count <- max(violation_weather$Violation_Count, na.rm = TRUE)
+
+lowest_violations <- violation_weather |>
+  filter(Violation_Count == min_count) |>
+  mutate(Extreme = "Lowest")
+
+highest_violations <- violation_weather |>
+  filter(Violation_Count == max_count) |>
+  mutate(Extreme = "Highest")
+
+# Combine, remove duplicates if any, and show with DT
+combined_extremes <- bind_rows(lowest_violations, highest_violations) |>
+  distinct() |>
+  reframe(Time = time, "Inspection Status" = inspection_status, "Violation Count" = Violation_Count, `Weather Code (WMO code)`, Extreme)
+datatable(combined_extremes, options = list(pageLength = 10, scrollX = TRUE), rownames = FALSE, style = "bootstrap5")
+```
+
+These results indicate that extreme summer months are likely to have few violations while a standard autumn month may exhibit a high violation count. This is based on July 2023 having 1 violation in a high weather code of 51 while 2783 violations were seen in October 2024 with a low weather code.\
+
+To further illustrate weather code impact on violations, we can create a dual plot with a histogram for daily weather violations and trends of each weather code over time. I rewrote 
+`violation_weather` to demonstrate the trends in a daily fashion. A red line is also included to show the overall trend of daily violations.
+```{r}
+#| output: false
+#| code-summary: Preparing Weather Code Chart
+
+# What weather conditions show the lowest and highest number of violations based on Inspection Status from clean?
+# Combine clean with weather_data and plot violations per day colored by the weather_code (wmo code)
+
+# Identify likely column names in weather_data
+time_col <- names(weather_data)[str_detect(names(weather_data), regex("(^time$|date|datetime|timestamp)", ignore_case = TRUE))][1]
+weather_code_col <- names(weather_data)[str_detect(names(weather_data), regex("weather.*code|weather_code|weathercode", ignore_case = TRUE))][1]
+
+# Make sure we found sensible columns
+if (is.na(time_col) || is.na(weather_code_col)) stop("Could not find time or weather_code column in weather_data. Inspect column names with names(weather_data).")
+
+# Prepare daily weather: choose the most frequent (mode) weather code for each day
+daily_weather <- weather_data |>
+  mutate(weather_date = as.Date(.data[[time_col]])) |>
+  filter(!is.na(weather_date)) |>
+  group_by(weather_date, weather_code = .data[[weather_code_col]]) |>
+  tally(name = "count") |>
+  slice_max(count, n = 1, with_ties = FALSE) |>
+  ungroup() |>
+  mutate(weather_code = as.character(weather_code))
+
+# Prepare violations per day from clean.
+# Treat rows whose Inspection Status contains "violation" (case-insensitive) as violations.
+violations_by_day <- clean_DCWP |>
+  mutate(date = as.Date(inspection_date)) |>
+  filter(!is.na(date)) |>
+  filter(str_detect(inspection_status, regex("violation", ignore_case = TRUE))) |>
+  group_by(date) |>
+  summarise(violations = n(), .groups = "drop")
+
+# Join weather to violations by date
+violation_weather <- violations_by_day |>
+  left_join(daily_weather, by = c("date" = "weather_date")) |>
+  mutate(weather_code = ifelse(is.na(weather_code), "unknown", weather_code))
+
+# Create a numeric mapping for weather_code so we can use a blue gradient,
+# while keeping labels for the discrete codes in the legend.
+violation_weather <- violation_weather |>
+  mutate(code_factor = factor(weather_code),
+         code_num = as.numeric(code_factor))
+
+code_labels <- levels(violation_weather$code_factor)
+code_breaks <- seq_along(code_labels)
+
+# Blue gradient palette sized to the number of weather codes (avoid RColorBrewer limit)
+# ensure we have at least one color to avoid errors when there are no codes
+code_labels <- levels(violation_weather$code_factor)
+if (length(code_labels) == 0) {
+  code_labels <- "unknown"
+  violation_weather$code_factor <- factor(violation_weather$weather_code, levels = code_labels)
+}
+n_codes <- max(length(code_labels), 1)
+
+# create a blue gradient palette with n_codes entries
+blue_palette <- colorRampPalette(c("#deebf7", "#9ecae1", "#3182bd"))(n_codes)
+
+```
+
+```{r}
+#| code-summary: Plotting the weather code data
+
+ggplot(violation_weather, aes(x = date, y = violations)) +
+  # bars filled by categorical weather code (legend hidden in favor of color legend below)
+  geom_col(aes(fill = code_factor)) +
+  # overall trendline across all weather codes
+  geom_smooth(aes(x = date, y = violations), method = "loess", se = FALSE, color = "red", size = 1) +
+  # per-weather-code trendlines to show how each weather code impacts violations over time
+  geom_smooth(aes(group = code_factor, color = code_factor),
+              se = FALSE, linetype = "dashed", size = 0.8, alpha = 0.9) +
+  # fill palette for the bars (hide its legend to avoid duplicate legends)
+  scale_fill_manual(values = setNames(blue_palette, code_labels), na.value = "grey50", guide = "none") +
+  # color palette for the per-code trendlines (same palette, shown in legend)
+  scale_color_manual(values = setNames(blue_palette, code_labels), na.value = "grey50", name = "Weather Code (WMO)") +
+  labs(title = "Daily Violations colored by Weather Code",
+       subtitle = "Red = overall trend; dashed colored lines = per-weather-code trends",
+       x = "Date",
+       y = "Number of Violations") +
+  theme_bw()
+```
+
+Even though WMO 75 peaked by a large margin, it is likely an outlier case given it only appeared in one day of year 2024. The overall trend looks like a sine wave, possible indication of re-occurance every two years.\
+
+Lastly, `gg-animate` was used to make a gif animation of the NYC map with weather code and violations over each month. The code attempts to read the file first, then render the animation if needed. 
+```{r}
+#| output: false
+#| code-summary: Creating the GIF Animation Map
+# Convert inspections to sf points and join to nyc_map polygons, aggregate by month,
+# join monthly weather, then create a magma choropleth and animate months showing weather code.
+
+# points
+inspections_sf <- st_as_sf(clean_DCWP, coords = c("longitude", "latitude"), crs = 4326, remove = FALSE)
+
+# ensure polygon id
+nyc_map$poly_id <- seq_len(nrow(nyc_map))
+
+# spatial join: attach polygon id to each inspection (only keep points that fall in polygons)
+inspections_joined <- st_join(inspections_sf, nyc_map["poly_id"], left = FALSE)
+
+# make YearMonth for monthly animation
+inspections_joined$YearMonth <- format(inspections_joined$inspection_date, "%Y-%m")
+
+# count violations per polygon per month
+counts_pm <- inspections_joined |>
+  st_drop_geometry() |>
+  count(poly_id, YearMonth, name = "violations")
+
+# include months with zero violations for all polygons
+all_months <- expand.grid(poly_id = nyc_map$poly_id,
+                          YearMonth = sort(unique(counts_pm$YearMonth)),
+                          stringsAsFactors = FALSE)
+counts_full <- all_months |>
+  left_join(counts_pm, by = c("poly_id", "YearMonth")) |>
+  mutate(violations = replace_na(violations, 0))
+
+# prepare weather by month (assumes weather_data has columns 'time' and 'weathercode')
+weather_data$time <- as.POSIXct(weather_data$time, tz = "UTC")
+weather_data$YearMonth <- format(as.Date(weather_data$time), "%Y-%m")
+weather_month <- weather_data |>
+  group_by(YearMonth) |>
+  summarize(weathercode = first(na.omit(`weather_code (wmo code)`)), .groups = "drop")
+
+# combine counts with monthly weather and create a frame label
+plot_meta <- counts_full |>
+  left_join(weather_month, by = "YearMonth") |>
+  mutate(weathercode = as.character(weathercode),
+         weathercode = replace_na(weathercode, "NA"),
+         Frame = paste0(YearMonth, " | weather: ", weathercode))
+
+# join back to geometry
+plot_sf <- nyc_map |>
+  left_join(plot_meta, by = "poly_id")
+
+# animated choropleth over months
+p <- ggplot(plot_sf) +
+  geom_sf(aes(fill = violations, geometry = geometry), color = "white", size = 0.1) +
+  scale_fill_viridis_c(option = "magma", na.value = "grey90") +
+  theme_minimal() +
+  labs(fill = "Violations",
+       title = "{closest_state}") +
+  theme(axis.text = element_blank(), axis.ticks = element_blank())
+
+anim <- p +
+  transition_states(Frame, transition_length = 2, state_length = 1, wrap = FALSE) +
+  enter_fade() + exit_fade()
+```
+
+```{r}
+#| code-summary: Save Animation if Needed.
+#Save plot as a gif animation, allows rendering to be easier and more flexible via markdown.
+if(!file.exists("./images/F_AnimationMap.gif")){
+  #Save the file only if it does not exist in the directory. Takes ~30 seconds to render and save.
+anim_save("F_AnimationMap.gif", animation = anim, path = './images/', fps = 3, nframes = length(unique(plot_sf$Frame)) * 3, width = 800, height = 800)
+  }
+#Plot is then shown below as a GIF.
+```
+
+<center>![](images/F_AnimationMap.gif){width="600"}</center>
+
+Given all these visuals and statistics, there is almost no impact on DHCP inspections and weather code except in extreme cases. Manhattan and surrounding districts may be most biased on inspections given the density of violations.
+
+## Which Months of the Year are Best for Food Inspection?
+
+Since we are looking at Food Inspections, the DOHMH data will now be used as inspections given it is based on restaurants and cafes. Weather and NYC map data are also used. First, I want to visualize the council districts to determine the distribution of A grades across the boroughs. We can take a glimpse of the data to see how this will be achieved.
+
+```{r}
+#| code-summary: Glimpse the DOHMH Data
+
+glimpse(clean_restaurant_data)
+```
+
+Given `location` is already in the format of spacial types we can immediately make a spacial data frame and have its values injected in the cleaned data set. Then, I created points for each inspection made that can fit into the NYC visualization. These inspections were determined whether the restaurant/cafe received an A grade or not. Using a binary approach will show which council districts stand out as not being reliable.
+
+```{r}
+#| output: false
+#| code-summary: Joining DOHMH data with Council Districts
+
+#Convert location column to sf object
+# remove rows with missing or empty WKT in the location column
+clean_restaurant_data <- clean_restaurant_data |>
+  filter(!is.na(location) & location != "")
+
+# disable s2 (can avoid st_is_longlat-related NA/TRUE/FALSE issues)
+sf::sf_use_s2(FALSE)
+
+nyc_restaurant_inspections_sf <- st_as_sf(clean_restaurant_data, wkt = "location", crs = 4326, agr = "constant")
+#Perform spatial join to get neighborhood information
+nyc_restaurant_inspections_sf <- st_join(nyc_restaurant_inspections_sf, nyc_map, join = st_within)
+#Create a non-spatial data frame copy (drop geometry) for analyses that don't need geometry
+nyc_restaurant_inspections_df <- nyc_restaurant_inspections_sf |> 
+  st_drop_geometry() |> 
+  as.data.frame()
+#Assign the non-spacial df back to cleaned data.
+clean_restaurant_data <- nyc_restaurant_inspections_df
+#Reenable s2
+sf::sf_use_s2(TRUE)
+
+# Aggregate by polygon (council district) and compute percent A
+sf::sf_use_s2(FALSE)
+
+# ensure polygons are valid and have an id
+nyc_map_poly <- nyc_map |> 
+  st_make_valid() |> 
+  mutate(poly_id = row_number())
+
+# points (inspectons) - keep spatial object created earlier
+pts <- nyc_restaurant_inspections_sf |> 
+  filter(!is.na(grade))
+
+# attach points to polygons (each polygon row will be repeated per point inside it)
+joined <- st_join(nyc_map_poly, pts, join = st_contains)
+# if st_join created poly_id.x and poly_id.y, combine into single poly_id and drop originals
+if (all(c("poly_id.x", "poly_id.y") %in% names(joined))) {
+  joined <- joined |> 
+    mutate(poly_id = coalesce(poly_id.x, poly_id.y)) |>
+    select(-any_of(c("poly_id.x", "poly_id.y")))
+}
+
+# compute totals and percent A per polygon
+summary_df <- joined |>
+  st_drop_geometry() |>
+  group_by(poly_id) |>
+  summarise(
+    n_total = n(),
+    n_A = sum(grade == "A", na.rm = TRUE),
+    .groups = "drop"
+  ) |>
+  mutate(pct_A = ifelse(n_total == 0, NA_real_, n_A / n_total))
+
+# merge summary back to polygon layer
+nyc_map_poly <- left_join(nyc_map_poly, summary_df, by = "poly_id")
+
+# build a continuous palette and map percent to colors
+pal <- colorRampPalette(c("red", "yellow", "green"))(100)
+pal_idx <- cut(nyc_map_poly$pct_A, breaks = seq(0, 1, length.out = 101), include.lowest = TRUE)
+cols <- ifelse(is.na(nyc_map_poly$pct_A), "grey90", pal[as.integer(pal_idx)])
+```
+
+```{r}
+#| code-summary: Plot NYC Map with 'A' Grade Percent
+
+#Re-enable sf_use_s2
+sf_use_s2(TRUE)
+# plot choropleth of percent A by council district
+plot(st_geometry(nyc_map_poly), col = cols,
+     main = "Percent of 'A' Grades by Council District (2022-2025)")
+
+# simple legend (5 bins)
+brks <- seq(0, 1, length.out = 6)
+legend_cols <- pal[seq(1, length(pal), length.out = 5)]
+lbls <- paste0(round(brks[-6] * 100), "% - ", round(brks[-1] * 100), "%")
+legend("topleft", legend = lbls, fill = legend_cols, title = "% A Grades", bty = "n")
+```
+
+In general, almost all council districts have a decent reputation for its restaurants. Queens stands out as one council district has less than 60% and surrounding districts are not up to 80%. This could indicate poor food quality or practices within that region, or inspectors have negative bias for these restaurants.\
+
+Next, lets see how temperature impacts the percent of A grades. An interactive dual visualization through `ggplotly` is made with histograms and points to achieve this. The binary approach of A grade restaurants is still used, bringing parity with the previous visual. The visual below has each month have four bars, one for each year between 2022 to 2025. Points of the average temperature are scaled with the axis but their real value is seen when hovering over it. You may also see `N` which shows how many inspections were performed for that month.
+
+```{r}
+#| code-summary: Interactive Temperature Chart of Grade A
+
+## Creating the graph
+# Ensure dates and create year/month
+restaurant_isA <- clean_restaurant_data |>
+    mutate(
+        inspection_date = as.Date(inspection_date),
+        grade_date = as.Date(grade_date),
+        year = year(inspection_date),
+        month = month(inspection_date, label = TRUE, abbr = TRUE),
+        grade_clean = toupper(trimws(grade)),
+        is_A = if_else(grade_clean == "A", 1L, 0L)
+    )
+
+# Summarize percent A by month and year
+inspections_summary <- restaurant_isA |>
+    group_by(month, year) |>
+    summarise(
+        n_total = n(),
+        n_A = sum(is_A, na.rm = TRUE),
+        pct_A = 100 * n_A / n_total,
+        .groups = "drop"
+    )
+
+# Try to extract a temperature column from weather_data (common names)
+temp_cols <- names(weather_data)[grepl("temp|temperature|t2m|temperature_2m", names(weather_data), ignore.case = TRUE)]
+
+show_temp <- FALSE
+tcol <- temp_cols[1]
+weather_monthly <- weather_data |>
+    mutate(time = as.Date(time)) |>
+    mutate(
+        year = year(time),
+        month = month(time, label = TRUE, abbr = TRUE)
+    ) |>
+    group_by(year, month) |>
+    summarise(mean_temp = mean(.data[[tcol]], na.rm = TRUE), .groups = "drop")
+
+inspections_summary <- inspections_summary |>
+    left_join(weather_monthly, by = c("year", "month"))
+
+# Find min-max values
+min_pct <- min(inspections_summary$pct_A, na.rm = TRUE)
+max_pct <- max(inspections_summary$pct_A, na.rm = TRUE)
+min_temp <- min(inspections_summary$mean_temp, na.rm = TRUE)
+max_temp <- max(inspections_summary$mean_temp, na.rm = TRUE)
+
+# Add mean temp to inspections_summary in a scaled manner
+inspections_summary <- inspections_summary |>
+    mutate(mean_temp_scaled = (mean_temp - min_temp) / (max_temp - min_temp) * (max_pct - min_pct) + min_pct)
+
+# Order months Jan..Dec
+inspections_summary$month <- factor(inspections_summary$month, levels = month(1:12, label = TRUE, abbr = TRUE))
+
+# Static plot but add text for hover
+p <- ggplot(inspections_summary, aes(x = month, y = pct_A, fill = factor(year))) +
+    geom_col(aes(text = paste0("Year: ", year, "<br>Month: ", month, "<br>Percent A: ", round(pct_A, 1), "%<br>N: ", n_total)),
+                     position = position_dodge(width = 0.9), color = "black", width = 0.8) +
+    scale_fill_brewer(palette = "Set2", name = "Year") +
+    labs(x = "Month", y = "Percent Grade A", title = "Percent Grade A by Month (2022-2025)") +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 0, vjust = 0.5))
+
+# Adding the points to the graph
+p <- p +
+    geom_point(aes(y = mean_temp_scaled, group = factor(year), color = factor(year),
+                                 text = paste0("Year: ", year, "<br>Month: ", month, "<br>Mean temp: ", round(mean_temp, 1))),
+                         position = position_dodge(width = 0.9), size = 2) +
+    scale_color_brewer(palette = "Dark2", name = "Year (temp)") +
+    guides(color = guide_legend(order = 2), fill = guide_legend(order = 1)) +
+    labs(title = paste0("Percent Grade A by Month (2022-2025)\nAverage Temperature (ºF) shown as points scaled to the %A range"))
+
+
+# Convert to interactive plotly object with hover showing the text field
+p <- ggplotly(p, tooltip = "text")
+p
+```
+
+There is no surprise that correlation is seen between temperature and year given seasonality. One key aspect is year 2022 is not very important as its N values are much lower compared to other years, likely due to the COVID-19 pandemic. The relationship between temperature and percent of A grades between months is not clear and subjective. I deduced May and June to be the best months for food inspection as they have the least volatility of percent with the highest values.
+
+## Is there any Relationship With What Type of Food Was Being Inspected?
+
+This is another SQ that will use DOHMH data as food is being looked at. Weather data will also be used, this time looking more at precipitation and snowfall given the previous factors were weak or unclear. I decided to use bar graphs of cuisines vs. precipitation and snowfall separately with the weather values normalized for easier analysis. Only the top cuisines will be shown and all years apart of 1900 were accounted for to have more data. The binary approach of A grade was used for both visuals. Note the `clean_restaurant_data` was reset given the change in years.
+
+```{r}
+#| code-summary: Precipitation Visualization Code
+
+#Re-clean restaurant data to include years starting 2010
+#Select relevant columns
+clean_restaurant_data <- restaurant_data |>
+  reframe(`camis`, `dba`, `boro`, `inspection_date`, `grade`, `grade_date`, `score`, `cuisine_description`, council_district, location)
+
+#Filter data starting in year 2010.
+clean_restaurant_data <- clean_restaurant_data |>
+  filter(`grade_date` >= as.Date('2010-01-01'))
+#Filter out rows with missing data in key columns
+clean_restaurant_data <- clean_restaurant_data |>
+  filter(!is.na(location) & !is.na(inspection_date) & !is.na(grade) & !is.na(score) & !is.na(cuisine_description))
+
+# ensure date columns are Date
+nyc_restaurant_inspections <- clean_restaurant_data |>
+  mutate(grade_date = as.Date(grade_date),
+         inspection_date = as.Date(inspection_date))
+
+wd_names <- names(weather_data)
+date_col  <- wd_names[grepl("date|time", wd_names, ignore.case = TRUE)][1]
+precip_col <- wd_names[grepl("precip", wd_names, ignore.case = TRUE)][1]
+
+# normalize weather to daily precipitation using detected columns
+weather_daily <- weather_data |>
+  rename(weather_date = !!rlang::sym(date_col),
+         precipitation = !!rlang::sym(precip_col)) |>
+  mutate(weather_date = as.Date(weather_date),
+         precipitation = as.numeric(precipitation)) |>
+  group_by(weather_date) |>
+  summarize(daily_precip = sum(precipitation, na.rm = TRUE), .groups = "drop")
+
+# restrict inspections to the full date range present in weather_data (all years)
+date_min <- min(weather_daily$weather_date, na.rm = TRUE)
+date_max <- max(weather_daily$weather_date, na.rm = TRUE)
+
+inspections_in_range <- nyc_restaurant_inspections |>
+  filter(grade_date >= date_min & grade_date <= date_max)
+
+inspections_with_precip <- inspections_in_range |>
+  left_join(weather_daily, by = c("grade_date" = "weather_date")) |>
+  filter(!is.na(daily_precip))
+
+# compute cuisine counts and select common cuisines (top 20)
+cuisine_counts <- inspections_with_precip |> count(cuisine_description, sort = TRUE)
+top_common_cuisines <- cuisine_counts |> slice_head(n = 20) |> pull(cuisine_description)
+
+# compute mean precipitation per cuisine across all years and take top 10
+top10_by_precip <- inspections_with_precip |>
+  filter(cuisine_description %in% top_common_cuisines) |>
+  group_by(cuisine_description) |>
+  summarize(mean_precip = mean(daily_precip, na.rm = TRUE),
+            median_precip = median(daily_precip, na.rm = TRUE),
+            inspections = n(),
+            .groups = "drop") |>
+  arrange(desc(mean_precip)) |>
+  slice_head(n = 10)
+
+# Plot the data
+ggplot(top10_by_precip, aes(x = reorder(cuisine_description, mean_precip), y = mean_precip)) +
+  geom_col(fill = "blue") +
+  coord_flip() +
+  labs(title = "Top 10 Cuisines by Mean Daily Precipitation on Inspection Days",
+       x = "Cuisine",
+       y = "Mean Daily Precipitation (in mm, normalized)") +
+  theme_bw()
+```
+
+Unfortunately, the top cuisines are not impacted by precipitation given not much change is seen. This made me want to include more cuisines in snowfall to determine if there is a noticeable change at some point in the graph. Besides adding in more cuisines and using snowfall, the same procedure for making the graph was used.
+
+```{r}
+#| code-summary: Snowfall Visualization Code
+
+# classify inspections as A vs Not A
+nyc_restaurant_inspections <- clean_restaurant_data |>
+  mutate(grade_A = if_else(toupper(trimws(grade)) == "A", "A", "Not A"))
+
+# auto-detect weather date and snow columns
+wd_names <- names(weather_data)
+date_col  <- wd_names[grepl("date|time", wd_names, ignore.case = TRUE)][1]
+snow_col  <- wd_names[grepl("snow", wd_names, ignore.case = TRUE)][1]
+
+if (is.na(date_col) || is.na(snow_col)) {
+  stop("Could not auto-detect weather date/snowfall columns. Available cols: ", paste(wd_names, collapse = ", "))
+}
+
+# normalize weather to daily snowfall using detected columns
+weather_daily_snow <- weather_data |>
+  rename(weather_date = !!rlang::sym(date_col),
+         snowfall = !!rlang::sym(snow_col)) |>
+  mutate(weather_date = as.Date(weather_date),
+         snowfall = as.numeric(snowfall)) |>
+  group_by(weather_date) |>
+  summarize(daily_snow = sum(snowfall, na.rm = TRUE), .groups = "drop")
+
+# restrict inspections to the full date range present in weather_data (all years)
+date_min <- min(weather_daily_snow$weather_date, na.rm = TRUE)
+date_max <- max(weather_daily_snow$weather_date, na.rm = TRUE)
+
+inspections_in_range <- nyc_restaurant_inspections |>
+  filter(grade_date >= date_min & grade_date <= date_max)
+
+inspections_with_snow <- inspections_in_range |>
+  left_join(weather_daily_snow, by = c("grade_date" = "weather_date")) |>
+  filter(!is.na(daily_snow))
+
+# compute cuisine counts and select common cuisines (top 20)
+cuisine_counts <- inspections_with_snow |> count(cuisine_description, sort = TRUE)
+top_common_cuisines <- cuisine_counts |> slice_head(n = 20) |> pull(cuisine_description)
+
+# compute mean snowfall per cuisine split by A vs Not A
+cuisine_by_grade_snow <- inspections_with_snow |>
+  filter(cuisine_description %in% top_common_cuisines) |>
+  group_by(cuisine_description, grade_A) |>
+  summarize(mean_snow = mean(daily_snow, na.rm = TRUE),
+            median_snow = median(daily_snow, na.rm = TRUE),
+            inspections = n(),
+            .groups = "drop")
+
+# Bars for A only, descending order (largest at top), no borders
+plot_data <- cuisine_by_grade_snow |>
+  filter(grade_A == "A") |>
+  arrange(desc(mean_snow)) |>
+  # set factor levels so the largest mean_snow appears at the top when flipped
+  mutate(cuisine_description = factor(cuisine_description, levels = rev(cuisine_description)))
+
+#Plot the data
+ggplot(plot_data, aes(x = cuisine_description, y = mean_snow)) +
+  geom_col(fill = "#2fa4e7", color = NA, width = 0.75) +
+  coord_flip() +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.05))) +
+  labs(title = "Top Cuisines Based on Snowfall (Grade A only)",
+       x = "Cuisine",
+       y = "Mean Daily Snowfall (in mm)") +
+  theme_bw(base_size = 12) +
+  theme(axis.text.y = element_text(face = "bold"),
+        plot.title = element_text(face = "bold"))
+```
+
+Even if we exclude the data to just the top 10, we can see more noticeable jumps between one cuisine to another. It appears that culture-based cuisines are favored more if snowfall occurs given Italian, Hispanic, and Asian based cuisines are among the top in this graph.
+
+## What Relationship Exists For The Inspector After Completing Each Subsequent Inspection? Does a Difference Exist between Restaurant Inspectors and Worker Inspectors?
+
+Here, we compare both DCWP and DOHMH inspectors after completing a previous inspection. The `business_unique_id` is the unique identifier for DCWP and `id` for DOHMH inspectors. These data sets are combined into one, `inspections_all` for years 2023 to 2025 for easy comparison. Using `lag`, we can determine if the previous result is the same as the next result. This allows consistency to be calculated in a binary manner. The data is adjusted to only include `id`, `inspection_date` as `date`, `result`, and `score`. First, lets make a data table showing the consistency results.
+
+```{r}
+#| code-summary: Consistency Datatable Code
+
+# Prepare DCWP - use Business Unique ID as id and Inspection Status as result
+dcwp_inspections <- clean_DCWP |>
+  mutate(date = as.Date(inspection_date)) |>
+  select(id = business_unique_id, date, result = inspection_status) |>
+  mutate(id = as.character(id),
+         date = as.Date(date),
+         result = as.character(result),
+         source = "DCWP")
+
+# Prepare DOHMH (clean_restaurant_data) - ensure dates and key fields are correct
+dohm_inspections <- clean_restaurant_data |>
+  mutate(inspection_date = as.Date(inspection_date),
+         camis = as.character(camis),
+         grade = as.character(grade)) |>
+  select(id = camis, date = inspection_date, result = grade, score) |>
+  mutate(id = as.character(id),
+         date = as.Date(date),
+         result = as.character(result),
+         source = "DOHMH")
+
+# Keep only 2023-2025 and non-missing results, then bind rows
+inspections_all <- bind_rows(dohm_inspections, dcwp_inspections) |>
+  filter(!is.na(id) & !is.na(date) & !is.na(result)) |>
+  filter(date >= as.Date("2023-01-01") & date <= as.Date("2025-12-31")) |>
+  arrange(source, id, date)
+
+# Compute per-establishment consistency (previous result same as current) within each source
+inspection_consistency <- inspections_all |>
+  group_by(source, id) |>
+  arrange(date, .by_group = TRUE) |>
+  mutate(previous_result = lag(result),
+         consistency = ifelse(!is.na(previous_result) & result == previous_result, 1, 0)) |>
+  filter(!is.na(previous_result)) |>
+  ungroup()
+
+# Per-establishment consistency rates
+per_establishment <- inspection_consistency |>
+  group_by(source, id) |>
+  summarize(consistency_rate = mean(consistency, na.rm = TRUE), .groups = "drop")
+
+# Overall consistency rate by source
+overall_by_source <- inspection_consistency |>
+  group_by(source) |>
+  summarize(overall_consistency_rate = mean(consistency, na.rm = TRUE), .groups = "drop")
+
+#Rename columns for clarity
+datatable(overall_by_source, colnames = c("Source", "Overall Consistency Rate"),
+          style = "bootstrap5", caption = 'Overall Inspection Consistency Rates (2023-2025)') |>
+  formatRound(columns = 2, digits = 4)
+```
+
+The results indicate DCWP are harder to guess compared to the DOHMH. A graph comparing consistency with establishments can further enforce this claim.
+
+```{r}
+#| code-summary: Consistency Graph Code
+
+# Histogram with two bars per bin (one per source) using position = "dodge"
+consistency_plot <- ggplot(per_establishment, aes(x = consistency_rate, fill = source)) +
+  geom_histogram(binwidth = 0.1, position = position_dodge(width = 0.1), color = "white", alpha = 0.8, boundary = 0) +
+  scale_x_continuous(limits = c(0,1), breaks = seq(0,1,0.1)) +
+  scale_fill_manual(values = c("DOHMH" = "#1f77b4", "DCWP" = "#ff7f0e")) +
+  labs(title = "Inspection Consistency Rates by Source (2023-2025)",
+       x = "Consistency Rate",
+       y = "Number of Establishments",
+       fill = "Source") +
+  theme_minimal()
+
+print(consistency_plot)
+```
+
+The graph shows DCWP mainly do not give the same score for over 12,000 establishments. The rest of their consistency is varied all over the graph in values about 5,000 or less. Meanwhile, DOHMH give the same score for about 18,000 establishments, where nearly all the data is here. Therefore, a difference exists between the inspectors where the DCWP have variation, making it difficult to assess inspection risks. Meanwhile, DOHMH inspectors are very likely to give the same grade.
+
+# Conclusion
+
+Given all the analysis, I made the following conclusions:
+
+- Density of buildings likely increases inspection risk
+- Snowfall can improve the chances of a good inspection rating
+- DCWP inspectors are harder to guess compared to DOHMH
+
+To answer the overarching question, snowfall had the greatest impact of improving inspection scores for culture-based cuisines. At the same time, density of buildings in the district and the inspector type also attribute to inspection result.
+
+## Limitations
+
+The main limitation was the data sets of inspectors not including the specific weather at their time in the establishment. Weather was given in a general sense based on just one point in NYC; it is possible one borough can have different weather than another borough. There also seemed to be bias based on cuisine, causing certain districts to be at a greater disadvantage if they do not provide such cuisine. Another major limitation was the lack of summary statistics or t-tests to determine if certain values are truly impactful. Performing these tests in a future work can reinforce whether these findings are valid. 
+
+## Future Works
+
+I propose additional data on inspections to be collected, specifically the weather at the time of the site. This would make weather very specific to each result. Also, I recommend a study be performed on consistency and favored areas through an interactive map, determining if any bias exists on the results.
