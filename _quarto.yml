@@ -14,7 +14,7 @@ website:
       - text: "Work"
         href: https://robotneagu.github.io/STA9750-2025-FALL/projects.html
       - text: "Resume"
-        href: https://robotneagu.pythonanywhere.com/
+        href: https://robotneagu.pythonanywhere.com
     
 format:
   html:
