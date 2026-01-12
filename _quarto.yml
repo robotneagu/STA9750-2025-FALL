@@ -8,17 +8,17 @@ website:
     Course Projects for STA 9750 at Baruch College
   site-url: "https://robotneagu.github.io/STA9750-2025-FALL/"
   navbar:
-      background: secondary
+      background: primary
       search: false
       left:
-      - text: "Projects"
+      - text: "Work"
         href: https://robotneagu.github.io/STA9750-2025-FALL/projects.html
       - text: "Resume"
-        href: https://robotneagu.pythonanywhere.com/resume
+        href: https://robotneagu.pythonanywhere.com/
     
 format:
   html:
-    theme: cyborg
+    theme: cosmo
     toc: false
 
 editor:

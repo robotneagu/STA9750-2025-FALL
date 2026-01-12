@@ -1,8 +1,5 @@
 ---
-title: "About Me"
-website:
-  navbar:
-    background: secondary
+title: "About"
 ---
 <br>
 
@@ -17,7 +14,7 @@ Some fun facts about me are my passion of studying nature's animals and trees, c
 
 <p style="margin-bottom: 100px;">
 
-[<img src="./images/GitHub_LogoInvert.png" width="60" height="auto">](https://github.com/robotneagu)   &nbsp;&nbsp;&nbsp;      [<img src="./images/LinkedInLogo_Invert.jpg" width="70" height="auto">](https://www.linkedin.com/in/robert-neagu-8b81a7238/)
+[<img src="./images/GitHubLogo.png" width="60" height="auto">](https://github.com/robotneagu)   &nbsp;&nbsp;&nbsp;      [<img src="./images/LinkedInLogo.png" width="70" height="auto">](https://www.linkedin.com/in/robert-neagu-8b81a7238/)
 
 ```{r}
 #| include: false
