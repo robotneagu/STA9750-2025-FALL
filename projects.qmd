@@ -40,7 +40,7 @@ Looked at 2 quotes from separate politicians and determined if they were telling
 ### Final Project: Inspecting the Weather
 Looked at whether a relationship exists with inspection ratings and the weather. 
 
-Answered How Much do Weather Conditions Impact Inspection Results of Establishments in New York City? \
+Answered: How Much do Weather Conditions Impact Inspection Results of Establishments in New York City? \
 
 [Presentation Link](./FinalPresentation.html) \
 
