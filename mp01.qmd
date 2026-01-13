@@ -3,9 +3,13 @@ title: "<center>Mini-Project 01</center>"
 subtitle: "<center>Exploring the Most Popular Programming on Netflix</center>"
 format: 
   html:
+    theme: cyborg
     code-fold: true
     code-summary: "Show the code"
     toc: true
+website:
+  navbar:
+    background: secondary
 ---
 
 <center>

@@ -17,27 +17,30 @@ Built and deployed machine learning model identify pneumonia in x-ray photos.
 
 ## R Projects
 
-### Mini-Project 01: Exploring the Most Popular Programming on Netflix
-Analyzed Netflix's Top 10 to determine why such shows became popular. <br>
-A press release section is also included, using evidence to promote specific shows based on certain variables. [Link to project](./mp01.html)
+### [Mini-Project 01: Exploring the Most Popular Programming on Netflix](./mp01.html)
+Analyzed Netflix's Top 10 to determine why such shows became popular.
 
-### Mini-Project 02: Making Backyards Affordable for All
-Explored area codes near metropolitan areas in the U.S. and determined which are best representative for a YIMBY (Yes in My Backyard) movement. \
-Analysis was performed for these metropolitan areas, the determining factors being rent burden and population growth. [Link to project](./mp02.html)
+A press release section is also included, using evidence to promote specific shows based on certain variables.
 
-### Mini-Project 03: Visualizing and Maintaining the Green Canopy of NYC
+### [Mini-Project 02: Making Backyards Affordable for All](./mp02.html)
+Explored area codes near metropolitan areas in the U.S. and determined which are best representative for a YIMBY (Yes in My Backyard) movement.
+
+Analysis was performed for these metropolitan areas, the determining factors being rent burden and population growth.
+
+### [Mini-Project 03: Visualizing and Maintaining the Green Canopy of NYC](./mp03.html)
 Downloaded data via APIs to visualize trees within NYC. The `sf` library was the focus of visualizations.\
 
 Analysis was performed on the condition and density of the trees alongside a proposal on why a specific district should have the most attention regarding dying trees.
-[Link to project](./mp03.html)
 
-### Mini-Project 04: Just the Fact(-Check)s, Ma’am!
+### [Mini-Project 04: Just the Fact(-Check)s, Ma’am!](./mp04.html)
 Scraped data from the CES BLS to perform analysis on job status in the U.S. over time.\
 
-Looked at 2 quotes from separate politicians and determined if they were telling the truth based on the analysis performed. [Link to project](./mp04.html)
+Looked at 2 quotes from separate politicians and determined if they were telling the truth based on the analysis performed.
 
 ### Final Project: Inspecting the Weather
-Looked at whether a relationship exists with inspection ratings and the weather. Answered How Much do Weather Conditions Impact Inspection Results of Establishments in New York City? \
+Looked at whether a relationship exists with inspection ratings and the weather. 
+
+Answered How Much do Weather Conditions Impact Inspection Results of Establishments in New York City? \
 
 [Presentation Link](./FinalPresentation.html) \
 
