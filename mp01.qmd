@@ -12,9 +12,9 @@ website:
     background: secondary
 ---
 
-<center>
-  <img src ="images/1_NetflixLogo.png" width = "200">
-</center>
+<div  style="padding: 0 0 20px 0; text-align:center; margin:0 auto;">
+  <img src ="images/1_NetflixLogo.png" width = "600" style="border-radius:20px;">
+</div>
 
 ## Background
 Most people have likely heard of Netflix and probably subscribed to it too. By searching online for most successful streaming services, Netflix is an option that will appear numerous times. With such success came numerous series or movies, some now exclusive, that captured the attention of people all around the world. This data analysis will look into what made such offerings, how long they have been successful, and whether they are viewed the same across different countries.
